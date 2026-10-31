@@ -24,7 +24,7 @@ Last updated: 31 Oct 2026, finals day.
 | Expo app (about 20 screens) | Done, `tsc` and `expo lint` clean, Android bundle builds |
 | Sample documents | Done (`demo-docs/`, served at `/demo-docs/`) |
 | **On-phone end-to-end test** | **Pending.** Voice recording and the camera are untested on a real device. |
-| Git | History rewritten locally (4 conventional commits, Samriddhi as co-author). **Needs the user to force-push** (see section 10). |
+| Git | History rewritten (conventional commits, Samriddhi as co-author) and force-pushed to `sg6724/Paytm_insurance_claim` main on 31 Oct. |
 
 **Live tracker:** https://claude.ai/artifact/3N5B3odjQdrRh2vAA4zC4R. It is a Claude artifact backed by a db: collection `phases` (docs `p0` to `p8`) and doc `meta/status` (headline plus log). Update it with the ArtifactData tool, pinning `if_version`.
 
@@ -270,8 +270,7 @@ On 31 Oct the laptop's Wi-Fi IP was `10.50.123.136`. If the phone switches to th
 
 ## 10. Open items / next steps
 
-1. **Force-push the rewritten history** (the user must run this; agents are blocked):
-   `git push --force-with-lease=main:ab90b93 origin main`. After that, Samriddhi should run `git fetch && git reset --hard origin/main`. Commits made after the rewrite, including the one that adds this file, go up with the same push.
+1. ~~Force-push the rewritten history~~ Done on 31 Oct. Anyone with an older clone should run `git fetch && git reset --hard origin/main`.
 2. **On-phone run** of the full demo script in README.md. Watch for:
    - mic permission and m4a upload to STT;
    - camera and document picker uploads (multipart from Expo Go);
