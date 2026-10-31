@@ -99,14 +99,33 @@ def test_a_fresh_thread_has_no_recap(api, model):
     assert t["messages"] == [] and t["recap"] is None
 
 
-def test_claims_and_policies_keep_separate_threads(api, model):
-    one = start_claim(api)
-    two = start_claim(api)
-    say(api, "about claim one", claim_id=one)
-    say(api, "about the policy", policy_id="pol_shield")
-    assert [m["content"] for m in api.get(f"/assistant/thread?claim_id={two}").json()["messages"]] == []
-    assert len(api.get(f"/assistant/thread?claim_id={one}").json()["messages"]) == 2
-    assert api.get("/assistant/thread?policy_id=pol_shield").json()["messages"][0]["content"] == "about the policy"
+def test_one_conversation_wherever_the_assistant_is_opened(api, model):
+    cid = start_claim(api)
+    say(api, "asked on the claim", claim_id=cid)
+    say(api, "asked on the policy", policy_id="pol_shield")
+    say(api, "asked on the home screen")
+    assert model[-1]["messages"][0]["content"] == "asked on the claim"  # the model has all of it
+    for scope in (f"claim_id={cid}", "policy_id=pol_shield", ""):
+        assert len(api.get(f"/assistant/thread?{scope}").json()["messages"]) == 6
+
+
+def test_the_current_claim_still_reaches_the_model(api, model):
+    cid = start_claim(api)
+    say(api, "first", policy_id="pol_shield")
+    say(api, "second", claim_id=cid)
+    assert model[-1]["ctx"]["claim"]["status"] == "documents_pending"
+
+
+def test_chats_belong_to_the_signed_in_user(api, model):
+    from fastapi.testclient import TestClient
+
+    from app.main import app
+
+    say(api, "my private question")
+    with TestClient(app) as other:
+        out = other.post("/auth/signup", json={"email": "someone-else-chat@test.in", "password": "testing-123", "name": "B"}).json()
+        h = {"Authorization": f"Bearer {out['token']}"}
+        assert other.get("/assistant/thread", headers=h).json()["messages"] == []
 
 
 def test_a_failed_answer_saves_nothing(api):
@@ -154,14 +173,14 @@ def test_recap_is_cached_until_the_conversation_moves(api, model, monkeypatch):
     assert len(n) == 2  # a new language needs a new recap
 
 
-def test_clear_chat_delete_claim_and_delete_my_data_all_remove_it(api, model):
+def test_clear_chat_and_delete_my_data_remove_it(api, model):
     cid = start_claim(api)
     say(api, "one", claim_id=cid)
     api.delete(f"/assistant/thread?claim_id={cid}")
     assert api.get(f"/assistant/thread?claim_id={cid}").json()["messages"] == []
     say(api, "two", claim_id=cid)
     api.delete(f"/claims/{cid}")
-    assert api.get(f"/assistant/thread?claim_id={cid}").json()["messages"] == []
+    assert len(api.get("/assistant/thread").json()["messages"]) == 2  # the conversation outlives one claim
     say(api, "three")
     api.delete("/me/data")
     assert api.get("/assistant/thread").json()["messages"] == []
@@ -176,3 +195,40 @@ def test_the_model_is_told_the_rule_based_next_step(api, model):
     cid = start_claim(api)
     say(api, "what now?", claim_id=cid)
     assert model[-1]["ctx"]["claim"]["next_step"] == "Finish your documents and the claim form, then check your payout."
+
+
+STAY_LINE = "My mother Sunita is in a single room at Rs 7500 a day for gallbladder surgery"
+
+
+def stay_chat(api, text, messages=()):
+    return api.post("/hospital/chat", json={"policy_id": "pol_shield", "messages": [*messages, {"role": "user", "content": text}], "facts": {}})
+
+
+def test_stay_chat_is_saved_and_comes_back(api):
+    api.post("/samples/sunita_gallbladder/policy")
+    assert stay_chat(api, STAY_LINE).status_code == 200
+    stay = api.get("/hospital/stay?policy_id=pol_shield").json()
+    assert [m["role"] for m in stay["messages"]] == ["user", "assistant"] and stay["messages"][0]["content"] == STAY_LINE
+    assert stay["facts"]["room_rent_per_day"] == 7500 and any("5,000" in f["title"] for f in stay["result"]["findings"])
+
+
+def test_a_new_stay_starts_empty(api):
+    api.post("/samples/sunita_gallbladder/policy")
+    stay = api.get("/hospital/stay?policy_id=pol_shield").json()
+    assert stay["messages"] == [] and stay["result"] is None
+
+
+def test_the_form_check_is_saved_too(api):
+    api.post("/samples/sunita_gallbladder/policy")
+    api.post("/hospital/check", json={"policy_id": "pol_shield", "facts": {"member_id": "m_sunita", "room_rent_per_day": 7500, "procedure": "hernia"}})
+    assert api.get("/hospital/stay?policy_id=pol_shield").json()["result"]["findings"]
+
+
+def test_stay_is_cleared_by_start_over_and_with_the_policy(api):
+    api.post("/samples/sunita_gallbladder/policy")
+    stay_chat(api, STAY_LINE)
+    api.delete("/hospital/stay?policy_id=pol_shield")
+    assert api.get("/hospital/stay?policy_id=pol_shield").json()["messages"] == []
+    stay_chat(api, STAY_LINE)
+    api.delete("/policies/pol_shield")
+    assert api.get("/hospital/stay?policy_id=pol_shield").json()["messages"] == []

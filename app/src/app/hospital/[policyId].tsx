@@ -1,7 +1,7 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import * as ImagePicker from 'expo-image-picker';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { KeyboardAvoidingView, Platform, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 
 import { get, rupees, send, upload } from '@/lib/api';
@@ -35,6 +35,29 @@ export default function HospitalCheck() {
   const speaker = useSpeaker();
 
   useFocusEffect(useCallback(() => setAssistantCtx({ screen: 'hospital_check', policy_id: policyId }), [policyId, setAssistantCtx]));
+
+  // Pick up where this stay left off.
+  useEffect(() => {
+    let live = true;
+    get<any>(`/hospital/stay?policy_id=${encodeURIComponent(policyId)}`)
+      .then((stay) => {
+        if (!live) return;
+        setMsgs(stay.messages ?? []);
+        setFacts(stay.facts ?? {});
+        setResult(stay.result);
+      })
+      .catch(() => {});
+    return () => {
+      live = false;
+    };
+  }, [policyId]);
+
+  async function startOver() {
+    await send(`/hospital/stay?policy_id=${encodeURIComponent(policyId)}`, undefined, 'DELETE').catch(() => {});
+    setMsgs([]);
+    setFacts({});
+    setResult(null);
+  }
 
   const p = policy.data;
   const greeting = p
@@ -188,6 +211,7 @@ export default function HospitalCheck() {
         {busy ? <Loading label={busy} /> : null}
         {error ? <ErrorNote error={error} /> : null}
         {result ? <CheckResult result={result} policy={p} claimType={claimType} /> : null}
+        {msgs.length || result ? <Btn title="Start over" kind="ghost" icon="refresh-outline" style={{ height: 42 }} onPress={startOver} /> : null}
       </ScrollView>
     </KeyboardAvoidingView>
   );

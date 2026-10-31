@@ -294,6 +294,7 @@ def patch_policy(pid: str, body: PolicyPatch):
 
 @app.delete("/policies/{pid}")
 def delete_policy(pid: str):
+    store.delete("stay", pid)
     store.delete("policy", pid)
     return {"ok": True}
 
@@ -332,7 +333,30 @@ def hospital_check(body: HospitalCheckIn):
     result = engine.hospital_check(p, facts)
     result["summary"] = tools.summarise_check(p, result, body.lang) if sarvam.available() else None
     store.audit("rules", "hospital_check", "Checked hospital stay against the policy", p["id"], {"facts": facts})
+    _save_stay(p["id"], facts=facts, result=result)
     return result
+
+
+STAY_MESSAGES = 100
+
+
+def _save_stay(policy_id: str, **fields) -> None:
+    """The stay chat, its facts and its result, so leaving the screen loses nothing."""
+    stay = store.get("stay", policy_id) or {"id": policy_id, "messages": [], "facts": {}, "result": None}
+    stay.update(fields)
+    stay["messages"] = stay["messages"][-STAY_MESSAGES:]
+    store.put("stay", stay)
+
+
+@app.get("/hospital/stay")
+def get_stay(policy_id: str):
+    return store.get("stay", policy_id) or {"id": policy_id, "messages": [], "facts": {}, "result": None}
+
+
+@app.delete("/hospital/stay")
+def clear_stay(policy_id: str):
+    store.delete("stay", policy_id)
+    return {"ok": True}
 
 
 class HospitalChatIn(BaseModel):
@@ -353,6 +377,10 @@ def hospital_chat(body: HospitalChatIn):
         store.audit("ai", "hospital_chat", "Collected stay details by conversation and ran the policy check", p["id"], {"facts": out["facts"]})
     else:
         out.pop("check", None)  # partial checks shape the reply; the full result card waits until the key facts are known
+    saved = {"messages": [*body.messages, {"role": "assistant", "content": out.get("reply", "")}], "facts": out.get("facts", {})}
+    if out.get("check"):
+        saved["result"] = {**out["check"], "summary": None}
+    _save_stay(p["id"], **saved)
     return out
 
 
@@ -423,7 +451,6 @@ def delete_claim(cid: str):
             p["remaining_si"] = min(float(p["sum_insured"]), float(p.get("remaining_si", p["sum_insured"])) + float(c["decision"]["amount_approved"] or 0))
             store.put("policy", p)
     store.delete("claim", cid)
-    store.delete("thread", memory.thread_id(cid, None))
     return {"ok": True}
 
 

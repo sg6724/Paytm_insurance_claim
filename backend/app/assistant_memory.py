@@ -1,4 +1,4 @@
-"""The assistant remembers. One thread per claim (or per policy, or general), kept between visits.
+"""The assistant remembers. One thread per user, kept between visits and across every screen.
 
 The model sees the last MODEL_WINDOW messages plus a rolling summary of anything older, so a long history never
 grows the prompt. The recap shown when the user comes back is AI-written; the "next step" under it is not: it comes
@@ -17,12 +17,10 @@ MAX_STORED = 200
 RETURN_GAP = timedelta(minutes=30)  # a gap this long counts as the user coming back
 
 
-def thread_id(claim_id: str | None, policy_id: str | None) -> str:
-    if claim_id:
-        return f"thr_claim_{claim_id}"
-    if policy_id:
-        return f"thr_policy_{policy_id}"
-    return "thr_general"
+def thread_id(claim_id: str | None = None, policy_id: str | None = None) -> str:
+    """One conversation per user, wherever the assistant is opened. A thread per screen looked like lost history;
+    the claim and policy being viewed still reach the model as context on each message."""
+    return "thr_main"
 
 
 def load(tid: str) -> dict:
