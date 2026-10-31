@@ -8,6 +8,20 @@ Claimezy lives inside Paytm's Health Insurance section and takes a policyholder 
 
 See [PRD.md](PRD.md) for the full product spec.
 
+## Try it
+
+**[Download the Android APK](https://expo.dev/artifacts/eas/oLEwPqtPLdmVMA5ijr-mArIEn3eYb8XfBlnAnLgNd6A.apk)**
+
+Install it on an Android phone and allow installs from your browser if asked. It needs only internet, no laptop.
+
+1. Tap **New here? Create an account**, then sign up with an email and a password of 8 or more characters.
+2. Scroll down the home screen to **Financial Services** and tap **Health Insurance**.
+3. Follow the onboarding, then pick **Try a sample claim** to walk the full journey.
+
+Live backend: https://claimezy-backend.vercel.app (check it at `/health`). Sample bills and policies to upload are in [demo-docs/](demo-docs/).
+
+Password reset emails need a verified sending domain. Until one is set up, they reach only the Resend account owner's address.
+
 ## Run it
 
 ### 1. Backend (laptop)
@@ -16,6 +30,7 @@ See [PRD.md](PRD.md) for the full product spec.
 cd backend
 python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
 echo "SARVAM_API_KEY=<your key>" > .env
+# optional: DATABASE_URL=<postgres url> for Postgres (SQLite otherwise), RESEND_API_KEY=<key> for password reset emails
 .venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8787 --reload
 ```
 
