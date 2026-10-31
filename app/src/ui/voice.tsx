@@ -9,11 +9,13 @@ import {
   useAudioRecorderState,
 } from 'expo-audio';
 import { useState } from 'react';
-import { ActivityIndicator, Pressable, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, Pressable, Text, View } from 'react-native';
 
-import { ttsUrl, upload } from '@/lib/api';
+import { API_BASE, ttsUrl, upload } from '@/lib/api';
 import { useApp } from '@/lib/app-context';
 import { C } from '@/lib/theme';
+
+const voiceProblem = (message: string) => Alert.alert('Voice', message);
 
 /** Hold-free mic: tap to record, tap to stop; returns the Sarvam transcript. */
 export function useVoiceInput() {
@@ -21,38 +23,37 @@ export function useVoiceInput() {
   const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
   const state = useAudioRecorderState(recorder);
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
   async function start() {
-    setError(null);
-    const { granted } = await requestRecordingPermissionsAsync();
-    if (!granted) {
-      setError('Allow microphone access to speak.');
-      return;
+    try {
+      const { granted } = await requestRecordingPermissionsAsync();
+      if (!granted) return voiceProblem('Allow microphone access to speak.');
+      await setAudioModeAsync({ playsInSilentMode: true, allowsRecording: true });
+      await recorder.prepareToRecordAsync();
+      recorder.record();
+    } catch (e: any) {
+      voiceProblem(`Could not start the microphone. ${e?.message ?? ''}`);
     }
-    await setAudioModeAsync({ playsInSilentMode: true, allowsRecording: true });
-    await recorder.prepareToRecordAsync();
-    recorder.record();
   }
 
   async function stop(): Promise<string | null> {
-    await recorder.stop();
-    await setAudioModeAsync({ playsInSilentMode: true, allowsRecording: false });
-    const uri = recorder.uri;
-    if (!uri) return null;
     setBusy(true);
     try {
-      const out = await upload<{ transcript: string }>('/assistant/stt', { uri, name: 'voice.m4a', type: 'audio/mp4' }, { lang });
+      await recorder.stop();
+      await setAudioModeAsync({ playsInSilentMode: true, allowsRecording: false });
+      if (!recorder.uri) throw new Error('No recording was saved.');
+      const out = await upload<{ transcript: string }>('/assistant/stt', { uri: recorder.uri, name: 'voice.m4a', type: 'audio/mp4' }, { lang });
+      if (!out.transcript) voiceProblem('We could not hear any words. Try again, a little closer to the phone.');
       return out.transcript || null;
     } catch (e: any) {
-      setError(e?.message ?? 'Could not hear that. Try again.');
+      voiceProblem(e?.message === 'Network request failed' ? `Can't reach the server at ${API_BASE}.` : (e?.message ?? 'Could not hear that. Try again.'));
       return null;
     } finally {
       setBusy(false);
     }
   }
 
-  return { recording: state.isRecording, busy, error, start, stop };
+  return { recording: state.isRecording, busy, start, stop };
 }
 
 export function MicButton({ onText, size = 48 }: { onText: (t: string) => void; size?: number }) {
@@ -94,6 +95,8 @@ export function ListenButton({ text, label = 'Listen' }: { text: string; label?:
           await setAudioModeAsync({ playsInSilentMode: true, allowsRecording: false });
           player.replace({ uri: ttsUrl(clean, ttsSupported ? lang : 'en-IN') });
           player.play();
+        } catch (e: any) {
+          voiceProblem(`Could not play this. ${e?.message ?? ''}`);
         } finally {
           setTimeout(() => setLoading(false), 600);
         }

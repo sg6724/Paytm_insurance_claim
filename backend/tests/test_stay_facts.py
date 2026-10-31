@@ -2,7 +2,7 @@
 
 import pytest
 
-from app.ai.stay_facts import extract, translit
+from app.ai.stay_facts import extract, spoken_numbers, translit
 from app.data.samples import SAMPLE_POLICIES
 
 POL = {p["id"]: p for p in SAMPLE_POLICIES}["pol_shield"]
@@ -47,3 +47,17 @@ def test_nothing_invented_from_chit_chat():
 @pytest.mark.parametrize("hi,latin", [("सुनीता", "sunita"), ("राकेश", "rakesh"), ("अर्जुन", "arjun")])
 def test_name_transliteration(hi, latin):
     assert translit(hi) == latin
+
+
+def test_hindi_amount_spoken_as_words():
+    f = extract("मेरी माँ सुनीता भरती हैं सिंगल रूम सात हज़ार पाँच सौ रुपये रोज़", POL)
+    assert f["room_rent_per_day"] == 7500 and f["member_id"] == "m_sunita"
+
+
+@pytest.mark.parametrize("said,value", [("पाँच हज़ार", 5000), ("छह हजार", 6000), ("दो लाख", 200000), ("पचास हज़ार", 50000), ("तीन सौ", 300), ("एक लाख बीस हज़ार", 120000)])
+def test_spoken_numbers(said, value):
+    assert spoken_numbers(said).strip() == str(value)
+
+
+def test_small_counts_stay_as_words():
+    assert spoken_numbers("दो दिन, एक कमरा") == "दो दिन, एक कमरा"

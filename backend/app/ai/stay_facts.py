@@ -80,13 +80,39 @@ _BILL = r"(?:bill|estimate|total|expected cost|बिल|अनुमान|ए�
 _NUM = r"(\d[\d,]*(?:\.\d+)?)"
 
 
+_ONES = {"एक": 1, "दो": 2, "तीन": 3, "चार": 4, "पांच": 5, "पाँच": 5, "पाच": 5, "छह": 6, "छः": 6, "छे": 6, "सहा": 6, "सात": 7, "आठ": 8, "नौ": 9, "नऊ": 9,
+         "दस": 10, "बीस": 20, "तीस": 30, "चालीस": 40, "पचास": 50, "साठ": 60, "सत्तर": 70, "अस्सी": 80, "नब्बे": 90}
+_SCALE = {"सौ": 100, "शंभर": 100, "हज़ार": 1000, "हजार": 1000, "लाख": 100000}
+_NUM_WORD = re.compile("(?:(?:" + "|".join(list(_ONES) + list(_SCALE)) + r")\s*)+")
+
+
+def spoken_numbers(text: str) -> str:
+    """Speech-to-text writes Hindi and Marathi amounts as words: "सात हज़ार पाँच सौ" becomes 7500. Only amounts with a scale word
+    are converted, so "दो दिन" or "एक कमरा" stay as they are."""
+    def convert(m: re.Match) -> str:
+        words = m.group(0).split()
+        if not any(w in _SCALE for w in words):
+            return m.group(0)
+        total, part = 0, 0
+        for w in words:
+            if w in _ONES:
+                part += _ONES[w]
+            elif _SCALE[w] == 100:
+                part = (part or 1) * 100
+            else:
+                total += (part or 1) * _SCALE[w]
+                part = 0
+        return f"{total + part} "
+    return _NUM_WORD.sub(convert, text)
+
+
 def _num(s: str) -> float:
     return float(s.replace(",", ""))
 
 
 def extract(text: str, policy: dict) -> dict:
     """Facts found in what the user typed or said. Only keys we are confident about are returned."""
-    t = text.translate(_DIGITS)
+    t = spoken_numbers(text.translate(_DIGITS))
     low = t.lower()
     facts: dict = {}
 
