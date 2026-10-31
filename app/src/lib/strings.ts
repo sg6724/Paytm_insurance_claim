@@ -4,7 +4,7 @@ export const EN = {
   financialServices: 'Financial Services',
   viewAll: 'View All',
   healthInsurance: 'Health Insurance',
-  claimsNew: 'Claim-to-Cash',
+  claimsNew: 'Claimezy',
   claimsNewSub: 'From hospital bill to money in hand. New',
   whereWeLeftOff: 'Where we left off',
   nextLabel: 'Next',

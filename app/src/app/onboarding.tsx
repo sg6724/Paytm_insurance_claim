@@ -15,7 +15,7 @@ const SLIDES: Slide[] = [
   {
     icon: 'shield-checkmark',
     title: 'Your health claim, start to finish',
-    body: 'Claim-to-Cash helps after you buy a policy: when you or your family is in hospital and you need the insurer to pay.',
+    body: 'Claimezy helps after you buy a policy: when you or your family is in hospital and you need the insurer to pay.',
     points: ['Understand what your policy really covers', 'Spot costly deductions before you leave the hospital', 'File the claim right the first time and track it until you are paid'],
   },
   {
@@ -111,7 +111,7 @@ export default function Onboarding() {
           <Pressable onPress={() => setConsent((c) => !c)} style={{ flexDirection: 'row', gap: 10, backgroundColor: C.paleBlue, padding: 14, borderRadius: 12 }}>
             <Ionicons name={consent ? 'checkbox' : 'square-outline'} size={22} color={C.navy} />
             <Text style={{ flex: 1, color: C.text, fontSize: 13 }}>
-              I agree that Claim-to-Cash may read my documents, use AI (Sarvam, hosted in India) to explain and draft, and share my claim with my insurer when I tap Submit. (DPDP Act, 2023)
+              I agree that Claimezy may read my documents, use AI (Sarvam, hosted in India) to explain and draft, and share my claim with my insurer when I tap Submit. (DPDP Act, 2023)
             </Text>
           </Pressable>
         ) : null}

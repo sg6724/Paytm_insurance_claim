@@ -21,7 +21,7 @@ function AskFab() {
   return (
     <Pressable
       onPress={() => router.push('/assistant')}
-      accessibilityLabel="Ask the Claim-to-Cash assistant"
+      accessibilityLabel="Ask the Claimezy assistant"
       style={{ position: 'absolute', right: 16, bottom: insets.bottom + 92, alignItems: 'center', gap: 2, ...shadow, elevation: 6 }}>
       <AssistantAvatar size={60} />
       <Text style={{ color: C.navy, fontWeight: '800', fontSize: 11 }}>{t('ask')}</Text>
@@ -35,7 +35,7 @@ function OfflineBanner() {
   if (online !== false) return null;
   return (
     <View style={{ position: 'absolute', top: insets.top, left: 0, right: 0, backgroundColor: C.red, padding: 8 }}>
-      <Text style={{ color: '#fff', textAlign: 'center', fontSize: 12 }}>{`Can't reach the Claim-to-Cash server at ${API_BASE}. Is the laptop on the same hotspot?`}</Text>
+      <Text style={{ color: '#fff', textAlign: 'center', fontSize: 12 }}>{`Can't reach the Claimezy server at ${API_BASE}. Is the laptop on the same hotspot?`}</Text>
     </View>
   );
 }

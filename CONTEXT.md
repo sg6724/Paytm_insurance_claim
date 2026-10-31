@@ -1,8 +1,10 @@
 # CONTEXT.md: handover for humans and agents
 
-Read this first if you are picking up Claim-to-Cash. It covers what exists, why it was built this way, how to run it, and what is left. [PRD.md](PRD.md) has the product spec and [README.md](README.md) has the run steps and the demo script.
+Read this first if you are picking up Claimezy. It covers what exists, why it was built this way, how to run it, and what is left. [PRD.md](PRD.md) has the product spec and [README.md](README.md) has the run steps and the demo script.
 
 Last updated: 31 Oct 2026, finals day.
+
+**Name:** the product was renamed from **Claim-to-Cash** to **Claimezy** on 31 Oct. The repo folder is still `claim-to-cash/` and the database file is still `claim_to_cash.db`; only user-facing names changed.
 
 ---
 
@@ -12,7 +14,7 @@ Last updated: 31 Oct 2026, finals day.
 
 **Event:** Paytm Build for India AI Hackathon, Track 2 (AI-Powered Financial Journeys). The grand finals are on 31 Oct 2026 at Paytm, Andheri East, Mumbai. The Top 10 jury pitch is 16:30 to 18:30.
 
-**Idea:** **Claim-to-Cash** lives inside Paytm's Health Insurance section. It takes a policyholder from "I'm in hospital" to "money in my account." Paytm today explains claims only *before* purchase. After purchase, "My Policies" just says "No policies found." This app fills that gap. The core principle is **"AI explains, rules decide"**: every rupee figure comes from a deterministic rule engine, and the LLM only reads documents, converses and explains.
+**Idea:** **Claimezy** lives inside Paytm's Health Insurance section. It takes a policyholder from "I'm in hospital" to "money in my account." Paytm today explains claims only *before* purchase. After purchase, "My Policies" just says "No policies found." This app fills that gap. The core principle is **"AI explains, rules decide"**: every rupee figure comes from a deterministic rule engine, and the LLM only reads documents, converses and explains.
 
 ## 2. Status
 
@@ -153,7 +155,7 @@ For Sunita, the insurer behaviour is `over_deduct`. It also cuts pharmacy and di
 
 | Route | Purpose |
 |---|---|
-| `index` | Paytm-style home. The Health Insurance tile and the Claim-to-Cash card lead to `/insurance`. |
+| `index` | Paytm-style home. The Health Insurance tile and the Claimezy card lead to `/insurance`. |
 | `insurance` | Insurance landing. Redirects to `onboarding` until the profile has `onboarded=true`. |
 | `onboarding` | 3 slides plus DPDP consent |
 | `settings` | Language picker (23 languages) |
@@ -305,4 +307,4 @@ On 31 Oct the laptop's Wi-Fi IP was `10.50.123.136`. If the phone switches to th
   - Revenue comes from claims-assist fees to insurers and TPAs, plus lender referral fees.
   - Pitch formula: 1% × 3.26 crore claims × ₹200 = ₹6.5 cr.
 
-The Stage 1 deck files are one folder up: `../Claim-to-Cash - Twisted Minds.pptx` and `.pdf`.
+The Stage 1 deck files are one folder up: `../Claim-to-Cash - Twisted Minds.pptx` (made before the rename) and `.pdf`.

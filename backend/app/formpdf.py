@@ -73,7 +73,7 @@ def build(claim: dict, policy: dict) -> bytes:
     page.insert_text((M, y), "Declaration: the details above are true to the best of my knowledge.", fontname="helv", fontsize=9, color=GREY)
     page.insert_text((M, y + 30), "Signature of claimant: ____________________", fontname="helv", fontsize=9)
     page.insert_text((W - M - 160, y + 30), "Date: ______________", fontname="helv", fontsize=9)
-    page.insert_text((M, H - 16), "Prepared with Claim-to-Cash. Synthetic demo, not a real insurer form.", fontname="helv", fontsize=7, color=GREY)
+    page.insert_text((M, H - 16), "Prepared with Claimezy. Synthetic demo, not a real insurer form.", fontname="helv", fontsize=7, color=GREY)
     out = doc.tobytes()
     doc.close()
     return out

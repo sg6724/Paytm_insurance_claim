@@ -16,7 +16,7 @@ const GO: { label: string; to: string }[] = [
 export default function Guide() {
   return (
     <View style={{ flex: 1 }}>
-      <Header title="How Claim-to-Cash works" sub="" right={<View />} />
+      <Header title="How Claimezy works" sub="" right={<View />} />
       <Screen>
         <Text style={{ color: C.sub, lineHeight: 21 }}>Four steps from hospital to money in your account. Start at the one you need today.</Text>
         {JOURNEY.map((s, n) => (

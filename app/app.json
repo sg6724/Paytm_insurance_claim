@@ -1,11 +1,11 @@
 {
   "expo": {
-    "name": "Claim-to-Cash",
-    "slug": "claim-to-cash",
+    "name": "Claimezy",
+    "slug": "claimezy",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "claimtocash",
+    "scheme": "claimezy",
     "userInterfaceStyle": "light",
     "ios": {
       "icon": "./assets/expo.icon"

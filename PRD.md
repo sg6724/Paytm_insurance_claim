@@ -1,4 +1,4 @@
-# Claim-to-Cash: Product Requirements
+# Claimezy: Product Requirements
 
 Team Twisted Minds (Jainam Oswal, Samriddhi Gupta)
 Paytm Build for India AI Hackathon, Grand Finals, Mumbai, 31 Oct 2026
@@ -8,7 +8,7 @@ Track 2: AI-Powered Financial Journeys
 
 ## 1. Summary
 
-Claim-to-Cash lives inside Paytm's Health Insurance section and takes a policyholder from "I'm in hospital" to "money in my account". It reads the policy, checks the hospital bill before discharge, estimates the payout in rupees, helps file the claim (by AI or by hand), tracks it against IRDAI timelines, explains deductions and rejections in the user's language, drafts appeals, and, only where it helps, connects the user to a lender for a bridge loan.
+Claimezy lives inside Paytm's Health Insurance section and takes a policyholder from "I'm in hospital" to "money in my account". It reads the policy, checks the hospital bill before discharge, estimates the payout in rupees, helps file the claim (by AI or by hand), tracks it against IRDAI timelines, explains deductions and rejections in the user's language, drafts appeals, and, only where it helps, connects the user to a lender for a bridge loan.
 
 **Principle: AI explains, rules decide.** Every rupee figure comes from a deterministic rule engine. The LLM reads documents and explains results. It never invents a number.
 
@@ -40,7 +40,7 @@ Any person can file for any insured member on the policy. There is no separate c
 Priority: **P0** must work in the demo, **P1** should work, **P2** nice to have.
 
 ### F1. Onboarding and guided first claim (P1)
-- 3 intro screens: what Claim-to-Cash does, how AI and rules split the work, data and consent.
+- 3 intro screens: what Claimezy does, how AI and rules split the work, data and consent.
 - Contextual tips on first visit to key screens.
 - "Try with a sample claim" loads a sample policy and patient so the user can walk the full journey without real documents. This doubles as the product tour.
 

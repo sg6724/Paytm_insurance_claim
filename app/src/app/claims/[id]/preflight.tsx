@@ -117,7 +117,7 @@ export default function Preflight() {
               </Card>
             ) : null}
             <Btn title="Export the form as PDF" kind="ghost" icon="download-outline" onPress={() => Linking.openURL(`${API_BASE}/claims/${id}/form.pdf`)} />
-            <Text style={{ color: C.faint, fontSize: 12, textAlign: 'center' }}>Calculated by the Claim-to-Cash rule engine from your policy terms and IRDAI rules. The insurer makes the final decision.</Text>
+            <Text style={{ color: C.faint, fontSize: 12, textAlign: 'center' }}>Calculated by the Claimezy rule engine from your policy terms and IRDAI rules. The insurer makes the final decision.</Text>
           </>
         ) : null}
       </Screen>

@@ -59,7 +59,7 @@ export default function Trust() {
         <Btn title="Delete all my data" kind="ghost" icon="trash-outline" onPress={() => setConfirm(true)} />
       </Screen>
       <Sheet visible={confirm} onClose={() => setConfirm(false)} title="Delete everything?">
-        <Text style={{ color: C.sub }}>Policies, claims, documents and chats will be deleted from Claim-to-Cash. Claims already with your insurer are not affected.</Text>
+        <Text style={{ color: C.sub }}>Policies, claims, documents and chats will be deleted from Claimezy. Claims already with your insurer are not affected.</Text>
         <Btn
           title="Delete my data"
           kind="danger"

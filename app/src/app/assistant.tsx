@@ -109,7 +109,7 @@ export default function Assistant() {
       <View style={{ paddingTop: insets.top + 8, paddingHorizontal: 16, paddingBottom: 10, flexDirection: 'row', alignItems: 'center', gap: 10, borderBottomWidth: 1, borderBottomColor: C.line }}>
         <AssistantAvatar size={44} />
         <View style={{ flex: 1 }}>
-          <Text style={{ fontWeight: '800', fontSize: 16 }}>Claim-to-Cash assistant</Text>
+          <Text style={{ fontWeight: '800', fontSize: 16 }}>Claimezy assistant</Text>
           <Text style={{ color: C.sub, fontSize: 12 }}>Answers in {langName} · knows your {assistantCtx.claim_id ? 'claim' : 'policy'}</Text>
         </View>
         {msgs.length ? (

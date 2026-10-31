@@ -1,8 +1,8 @@
-# Claim-to-Cash
+# Claimezy
 
 Paytm Build for India AI Hackathon, Grand Finals, Track 2 (AI-Powered Financial Journeys). Team Twisted Minds.
 
-Claim-to-Cash lives inside Paytm's Health Insurance section and takes a policyholder from "I'm in hospital" to "money in my account": it explains the policy in any Indian language, checks the hospital stay before discharge (by chat, voice, form or bill photo), fills the claim form from documents (or checks the user's own entries live), estimates the payout in rupees, tracks the claim, explains deductions and rejections, drafts appeals up to the Ombudsman, and offers a lender-decided bridge loan.
+Claimezy lives inside Paytm's Health Insurance section and takes a policyholder from "I'm in hospital" to "money in my account": it explains the policy in any Indian language, checks the hospital stay before discharge (by chat, voice, form or bill photo), fills the claim form from documents (or checks the user's own entries live), estimates the payout in rupees, tracks the claim, explains deductions and rejections, drafts appeals up to the Ombudsman, and offers a lender-decided bridge loan.
 
 **AI explains, rules decide.** Every rupee figure comes from a tested rule engine (`backend/app/rules/engine.py`). Sarvam AI reads documents, talks to the user and explains results.
 

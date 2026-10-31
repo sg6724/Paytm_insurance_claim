@@ -1,4 +1,4 @@
-"""Generate synthetic hospital / insurer documents for testing Claim-to-Cash.
+"""Generate synthetic hospital / insurer documents for testing Claimezy.
 
 All people, hospitals, insurers and numbers are fictional. Every page carries a
 "Synthetic sample for demo" footer.
@@ -58,7 +58,7 @@ class Doc:
         p.insert_text((M, 54), sub, fontsize=8.5, fontname="helv", color=(0.85, 0.9, 1))
         p.insert_text((M, 108), title, fontsize=13, fontname="hebo", color=NAVY)
         p.draw_line((M, 116), (W - M, 116), color=NAVY, width=1)
-        p.insert_text((M, H - 22), "Synthetic sample for Claim-to-Cash demo. Not a real medical or financial record.", fontsize=7, fontname="helv", color=GREY)
+        p.insert_text((M, H - 22), "Synthetic sample for Claimezy demo. Not a real medical or financial record.", fontsize=7, fontname="helv", color=GREY)
         self.y = 136
 
     def kv(self, pairs, cols=2):
@@ -279,7 +279,7 @@ def cheque(key):
     pg.insert_text((24, 245), f"\"{b['account_number'][-6:]}\"  {b['ifsc'][:4]}0{b['ifsc'][5:]}:  000229  31", fontsize=12, fontname="cour")
     pg.draw_line((60, 230), (540, 40), color=(0.8, 0.1, 0.1), width=4)
     pg.insert_text((240, 150), "CANCELLED", fontsize=34, fontname="hebo", color=(0.8, 0.1, 0.1), rotate=0)
-    pg.insert_text((24, 262), "Synthetic sample for Claim-to-Cash demo.", fontsize=6, fontname="helv", color=GREY)
+    pg.insert_text((24, 262), "Synthetic sample for Claimezy demo.", fontsize=6, fontname="helv", color=GREY)
     pg.get_pixmap(dpi=130).save(OUT / f"{PREFIX[key]}_Cancelled_Cheque.jpg", jpg_quality=82)
 
 
@@ -342,7 +342,7 @@ def sms_screenshot():
         pg.draw_rect(pymupdf.Rect(12, y - 6, 308, y + 82), color=None, fill=(1, 1, 1), radius=0.08)
         pg.insert_textbox(r, t, fontsize=9.5, fontname="helv")
         y += 100
-    pg.insert_text((16, 628), "Synthetic sample for Claim-to-Cash demo.", fontsize=6, fontname="helv", color=GREY)
+    pg.insert_text((16, 628), "Synthetic sample for Claimezy demo.", fontsize=6, fontname="helv", color=GREY)
     pg.get_pixmap(dpi=160).save(OUT / "Insurer_SMS_Screenshot.png")
 
 
@@ -371,9 +371,9 @@ def index_html():
               "Screenshots for the assistant": [f for f in files if f.startswith("Insurer")]}
     body = "".join(f"<h2>{g}</h2><ul>" + "".join(f'<li><a href="{f}" download>{f}</a></li>' for f in fs) + "</ul>" for g, fs in groups.items() if fs)
     (OUT / "index.html").write_text(f"""<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Claim-to-Cash sample documents</title><style>body{{font-family:system-ui,sans-serif;margin:16px;color:#101828;background:#F3F6FA}}h1{{color:#002E6E;font-size:22px}}
+<title>Claimezy sample documents</title><style>body{{font-family:system-ui,sans-serif;margin:16px;color:#101828;background:#F3F6FA}}h1{{color:#002E6E;font-size:22px}}
 h2{{font-size:15px;margin-top:22px}}ul{{list-style:none;padding:0}}li{{margin:8px 0}}a{{display:block;background:#fff;border:1px solid #E4E9F0;border-radius:12px;padding:12px;color:#002E6E;text-decoration:none;font-weight:600}}
-p{{color:#5B6B7F;font-size:13px}}</style></head><body><h1>Claim-to-Cash sample documents</h1>
+p{{color:#5B6B7F;font-size:13px}}</style></head><body><h1>Claimezy sample documents</h1>
 <p>Tap a file to download it to your phone, then pick it in the app (Add policy, Documents, Bill photo, or the assistant's image button). All documents are synthetic.</p>{body}</body></html>""")
 
 

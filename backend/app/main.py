@@ -1,4 +1,4 @@
-"""Claim-to-Cash API."""
+"""Claimezy API."""
 
 from __future__ import annotations
 
@@ -20,7 +20,7 @@ from .data.ombudsman import find_office
 from .data.samples import PAYTM_POLICIES, SAMPLE_CLAIMS, SAMPLE_POLICIES
 from .rules import engine
 
-app = FastAPI(title="Claim-to-Cash API", version="1.0")
+app = FastAPI(title="Claimezy API", version="1.0")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 app.mount("/files", StaticFiles(directory=str(config.UPLOAD_DIR)), name="files")
 DEMO_DOCS = config.BASE.parent / "demo-docs"
@@ -73,7 +73,7 @@ def i18n(body: I18nIn):
         return body.strings
     try:
         out = sarvam.chat([
-            {"role": "system", "content": "Translate the JSON values into the target language for a Paytm insurance app. Keep keys unchanged, keep it short and natural, keep ₹ and brand names (Paytm, Claim-to-Cash, UPI) as is. Reply with the JSON object only."},
+            {"role": "system", "content": "Translate the JSON values into the target language for a Paytm insurance app. Keep keys unchanged, keep it short and natural, keep ₹ and brand names (Paytm, Claimezy, UPI) as is. Reply with the JSON object only."},
             {"role": "user", "content": f"Target language: {config.LANG_NAME.get(body.lang, body.lang)}\n{__import__('json').dumps(body.strings, ensure_ascii=False)}"},
         ], json_mode=True, task="i18n", max_tokens=4000)
         return {k: out.get(k, v) for k, v in body.strings.items()}
@@ -445,7 +445,7 @@ def set_fill_mode(cid: str, body: FillModeIn):
         filled = C.autofill(c, p)
         c["form"] = {**c.get("form", {}), **filled["values"]}
         c["form_sources"] = filled["sources"]
-        store.audit("you", "consent_given", "Allowed Claim-to-Cash to fill the claim form from your documents", cid)
+        store.audit("you", "consent_given", "Allowed Claimezy to fill the claim form from your documents", cid)
         store.audit("ai", "form_filled", f"Filled {len(filled['values'])} fields from your documents and policy", cid, {"fields": list(filled["values"])})
     else:
         c["form_sources"] = {}
