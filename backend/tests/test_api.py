@@ -252,3 +252,18 @@ def test_first_visit_tips_are_remembered_and_reset(api):
     assert api.get("/profile").json()["tips_seen"] == ["policy", "form"]
     api.post("/demo/reset")
     assert api.get("/profile").json().get("tips_seen", []) == []
+
+
+def test_hospital_chat_still_runs_the_check_when_the_ai_is_unreachable(api):
+    pol = api.post("/samples/sunita_gallbladder/policy").json()
+    line = "मेरी माँ सुनीता भर्ती हैं, सिंगल रूम 7500 रुपये रोज़, पित्ताशय की सर्जरी"
+    r = api.post("/hospital/chat", json={"policy_id": pol["id"], "messages": [{"role": "user", "content": line}], "lang": "hi-IN"})
+    assert r.status_code == 200
+    out = r.json()
+    assert out["ready"] and any("5,000" in f["title"] for f in out["check"]["findings"]) and out["reply"]
+
+
+def test_hospital_chat_asks_for_what_is_missing_when_the_ai_is_unreachable(api):
+    pol = api.post("/samples/sunita_gallbladder/policy").json()
+    r = api.post("/hospital/chat", json={"policy_id": pol["id"], "messages": [{"role": "user", "content": "hello"}], "lang": "en-IN"}).json()
+    assert not r["ready"] and "who is in hospital" in r["reply"]

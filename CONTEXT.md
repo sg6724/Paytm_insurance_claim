@@ -19,10 +19,12 @@ Last updated: 31 Oct 2026, finals day.
 | Area | State |
 |---|---|
 | PRD | Done (`PRD.md`) |
-| Rule engine | Done, 7 passing tests (`backend/tests/test_engine.py`) |
+| Rule engine | Done. 43 backend tests pass: engine, API journeys, stay-facts reader (`backend/tests/`) |
 | Backend API + mocks + AI | Done, verified live with Sarvam |
 | Expo app (about 20 screens) | Done, `tsc` and `expo lint` clean, Android bundle builds |
 | Sample documents | Done (`demo-docs/`, served at `/demo-docs/`) |
+| Onboarding, How it works, tips | Done. Five-slide onboarding, Help opens `/guide`, one-time tips |
+| Audit | Done, see [AUDIT.md](AUDIT.md). Ready to demo, not ready for real customers |
 | **On-phone end-to-end test** | **Pending.** Voice recording and the camera are untested on a real device. |
 | Git | History rewritten (conventional commits, Samriddhi as co-author) and force-pushed to `sg6724/Paytm_insurance_claim` main on 31 Oct. |
 
@@ -61,6 +63,7 @@ claim-to-cash/
 ├── PRD.md                    product spec (features F1-F11, flows, screens, phases)
 ├── README.md                 run steps + demo script
 ├── CONTEXT.md                this file
+├── AUDIT.md                  pre-production audit: what was tested, found, fixed and is still open
 ├── demo-docs/                generated sample PDFs/JPGs + index.html (served at /demo-docs/)
 ├── backend/                  FastAPI, Python 3.14, venv in backend/.venv
 │   ├── .env                  SARVAM_API_KEY=... (gitignored, never commit)
@@ -74,6 +77,8 @@ claim-to-cash/
 │   │   ├── rules/engine.py   compute(), hospital_check(), deadlines(): ALL money math
 │   │   ├── rules/non_payables.py  IRDAI non-payable list (word-boundary matching)
 │   │   ├── ai/sarvam.py      chat (v1, json mode + retry), vision (v2, gemma4), stt, tts, translate; disk cache
+│   │   ├── ai/stay_facts.py  reads room, rent, procedure and patient from what the user says (Hindi, Marathi, English); fills gaps the LLM leaves
+│   │   ├── formpdf.py        claim form as a PDF
 │   │   ├── ai/tools.py       parse_policy, extract_document, explainer_template/localise,
 │   │   │                     hospital_chat, summarise_check, explain_decision, draft_appeal,
 │   │   │                     assistant, describe_attachment

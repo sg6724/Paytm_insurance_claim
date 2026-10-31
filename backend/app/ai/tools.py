@@ -3,10 +3,11 @@
 from __future__ import annotations
 
 import json
+from datetime import date
 
 import pymupdf
 
-from .. import config
+from .. import config, store
 from . import sarvam, stay_facts
 from .sarvam import SarvamError
 
@@ -211,7 +212,10 @@ def hospital_chat(policy: dict, messages: list[dict], facts: dict, lang: str) ->
            "\nReply as JSON: {\"reply\": str, \"facts\": {only facts known so far}, \"ready\": bool}.")
     ctx = f"MEMBERS: {json.dumps(members, ensure_ascii=False)}\nKNOWN FACTS: {json.dumps(facts, ensure_ascii=False)}\nTODAY: {__import__('datetime').date.today()}"
     msgs = [{"role": "system", "content": sys}, {"role": "system", "content": ctx}] + messages[-12:]
-    out = sarvam.chat(msgs, json_mode=True, task="hospital_chat", use_cache=True, max_tokens=800)
+    try:
+        out = sarvam.chat(msgs, json_mode=True, task="hospital_chat", use_cache=True, max_tokens=800)
+    except SarvamError:
+        out = {}  # AI unreachable: keep going on what the user's own words give us, so the stay check still runs
     merged = dict(facts)
     merged.update({k: v for k, v in (out.get("facts") or {}).items() if k in FACT_KEYS and v not in (None, "")})
     # The model sometimes returns no facts. Fill the gaps from the user's own words; never override what is already known.
@@ -219,7 +223,11 @@ def hospital_chat(policy: dict, messages: list[dict], facts: dict, lang: str) ->
     for k, v in stay_facts.extract(said, policy).items():
         merged.setdefault(k, v)
     enough = bool(merged.get("member_id") and (merged.get("room_rent_per_day") or merged.get("room_category")) and (merged.get("diagnosis") or merged.get("procedure")))
-    return {"reply": out.get("reply", ""), "facts": merged, "ready": bool(out.get("ready")) or enough, "forced": enough and not out.get("ready")}
+    reply = out.get("reply") or ""
+    if not reply and not enough:
+        reply = ("I could not reach the AI assistant just now, so I am reading what you type. Please tell me who is in hospital, "
+                 "the room type and its rent per day, and the treatment.")
+    return {"reply": reply, "facts": merged, "ready": bool(out.get("ready")) or enough, "forced": enough and not out.get("ready")}
 
 
 def summarise_check(policy: dict, check: dict, lang: str) -> str:
@@ -253,7 +261,9 @@ def draft_appeal(policy: dict, claim: dict, analysis: dict, step: str, lang: str
            "gro": "the insurer's Grievance Redressal Officer (formal grievance)",
            "bima_bharosa": "IRDAI Bima Bharosa portal (complaint description)",
            "ombudsman": "the Insurance Ombudsman (complaint under Insurance Ombudsman Rules, 2017)"}[step]
+    prof = store.get("profile", "me") or {}
     ctx = {"policy_number": policy.get("policy_number"), "insurer": policy.get("insurer"), "claimant": member.get("name"),
+           "claimant_contact": {k: prof.get(k) for k in ("mobile", "email", "pincode") if prof.get(k)}, "today": str(date.today()),
            "claim_ref": claim.get("insurer_ref"), "hospital": claim.get("form", {}).get("hospital_name") or claim.get("hospital"),
            "admission": claim.get("form", {}).get("admission_date"), "discharge": claim.get("form", {}).get("discharge_date"),
            "decision": claim.get("decision"), "analysis": analysis,
@@ -264,7 +274,8 @@ def draft_appeal(policy: dict, claim: dict, analysis: dict, step: str, lang: str
                                           "Use only facts and amounts from CONTEXT. Cite clause ids and the IRDAI rule that proportionate deduction "
                                           "does not apply to pharmacy, consumables, implants and diagnostics when relevant. " + lang_instruction(lang)},
             {"role": "user", "content": f"Write a letter to {who}. Include subject line, reference numbers, the disputed amount, "
-                                        f"grounds point by point, documents enclosed, and the specific relief requested. Sign off as the claimant. "
+                                        f"grounds point by point, documents enclosed, and the specific relief requested. Sign off as the claimant. Use the claimant contact details and today's date from CONTEXT. "
+                                        f"Never write placeholders such as [Your Name] or [Address]; if a detail is not in CONTEXT, leave that line out. "
                                         f"Under 250 words. CONTEXT: {json.dumps(ctx, ensure_ascii=False)}"},
         ], task=f"appeal_{step}", max_tokens=1500)
     except SarvamError:
