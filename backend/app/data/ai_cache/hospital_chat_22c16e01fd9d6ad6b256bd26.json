@@ -1,0 +1,8 @@
+{
+ "value": {
+  "reply": "Yes, but it will cost more. Your room is ₹10,000/day, which is above your ₹5,000 limit. This means other hospital charges like doctor fees and surgery will be paid at only 50%. You will also pay 10% of the final bill. The best way to save is to ask the hospital to move you to a room within ₹5,000/day. This is the single biggest saving. To check your full claim, I need to know who is in the hospital and whether the admission was an emergency or planned.",
+  "facts": {
+   "room_rent_per_day": 10000.0
+  }
+ }
+}

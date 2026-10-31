@@ -497,42 +497,68 @@ def bridge_offer(claim: dict, policy: dict) -> dict | None:
 
 # ---------------- NHCX FHIR export ----------------
 
+FHIR_ID_SYSTEM = "https://claimezy.example/fhir"  # demo identifier namespace; real ABHA / HFR / IRDAI ids come with NHCX onboarding
+
+
+def _fhir_id(raw: str) -> str:
+    return re.sub(r"[^A-Za-z0-9\-.]", "-", raw)[:64]
+
+
 def fhir_bundle(claim: dict, policy: dict) -> dict:
+    """The claim as a FHIR R4 Bundle shaped after the NRCeS ClaimBundle profile used by NHCX.
+
+    Validated against the FHIR R4 schema in tests. Not yet validated against the NRCeS / NHCX profiles, which also need
+    real ABHA, HFR (hospital) and insurer participant codes.
+    """
+    import uuid
+
     f = claim.get("form") or {}
     member = next((m for m in policy["members"] if m["id"] == f.get("member_id", claim.get("member_id"))), policy["members"][0])
     items = bill_items(claim)
-    pid, cid, oid, iid = "Patient/1", "Coverage/1", "Organization/hospital", "Organization/insurer"
+    ns = uuid.uuid5(uuid.NAMESPACE_URL, f"claimezy:{claim['id']}")
+    urn = lambda name: f"urn:uuid:{uuid.uuid5(ns, name)}"  # noqa: E731
+    pid, cid, oid, iid, clid = urn("patient"), urn("coverage"), urn("hospital"), urn("insurer"), urn("claim")
+    ident = lambda kind, value: [{"system": f"{FHIR_ID_SYSTEM}/{kind}", "value": str(value)}]  # noqa: E731
+    total = float(f.get("total_claimed") or sum(float(i["amount"]) for i in items) or 0)
     entries = [
-        {"fullUrl": pid, "resource": {"resourceType": "Patient", "id": "1", "name": [{"text": member["name"]}],
-                                      "gender": {"M": "male", "F": "female"}.get(member.get("gender"), "unknown")}},
-        {"fullUrl": oid, "resource": {"resourceType": "Organization", "id": "hospital", "name": f.get("hospital_name") or claim.get("hospital")}},
-        {"fullUrl": iid, "resource": {"resourceType": "Organization", "id": "insurer", "name": policy["insurer"]}},
-        {"fullUrl": cid, "resource": {"resourceType": "Coverage", "id": "1", "status": "active", "subscriberId": policy.get("policy_number"),
-                                      "beneficiary": {"reference": pid}, "payor": [{"reference": iid}],
-                                      "period": {"start": policy.get("start_date"), "end": policy.get("end_date")}}},
-        {"fullUrl": "Claim/1", "resource": {
-            "resourceType": "Claim", "id": "1", "status": "active", "use": "claim",
+        {"fullUrl": clid, "resource": {
+            "resourceType": "Claim", "id": _fhir_id(claim["id"]), "status": "active", "use": "claim",
             "meta": {"profile": ["https://nrces.in/ndhm/fhir/r4/StructureDefinition/Claim"]},
-            "type": {"coding": [{"system": "http://terminology.hl7.org/CodeSystem/claim-type", "code": "institutional"}]},
+            "identifier": ident("claim", claim.get("insurer_ref") or claim["id"]),
+            "type": {"coding": [{"system": "http://terminology.hl7.org/CodeSystem/claim-type", "code": "institutional", "display": "Institutional"}]},
             "subType": {"text": claim["claim_type"]},
             "patient": {"reference": pid}, "created": store.now(), "insurer": {"reference": iid}, "provider": {"reference": oid},
-            "priority": {"coding": [{"code": "normal"}]},
+            "priority": {"coding": [{"system": "http://terminology.hl7.org/CodeSystem/processpriority", "code": "normal"}]},
             "insurance": [{"sequence": 1, "focal": True, "coverage": {"reference": cid}}],
-            "diagnosis": [{"sequence": 1, "diagnosisCodeableConcept": {"text": f.get("diagnosis")}}],
-            "procedure": [{"sequence": 1, "procedureCodeableConcept": {"text": f.get("procedure")}}] if f.get("procedure") else [],
-            "billablePeriod": {"start": f.get("admission_date"), "end": f.get("discharge_date")},
-            "item": [{"sequence": i + 1, "productOrService": {"text": it["name"]}, "category": {"text": it.get("category")},
+            "diagnosis": [{"sequence": 1, "diagnosisCodeableConcept": {"text": f.get("diagnosis") or "Not stated"}}],
+            **({"procedure": [{"sequence": 1, "procedureCodeableConcept": {"text": f["procedure"]}}]} if f.get("procedure") else {}),
+            **({"billablePeriod": {k: v for k, v in (("start", f.get("admission_date")), ("end", f.get("discharge_date"))) if v}}
+               if f.get("admission_date") or f.get("discharge_date") else {}),
+            "item": [{"sequence": i + 1, "productOrService": {"text": it["name"]}, "category": {"text": it.get("category") or "misc"},
                       "net": {"value": float(it["amount"]), "currency": "INR"}} for i, it in enumerate(items)],
-            "total": {"value": float(f.get("total_claimed") or sum(float(i["amount"]) for i in items)), "currency": "INR"},
+            "total": {"value": total, "currency": "INR"},
         }},
+        {"fullUrl": pid, "resource": {"resourceType": "Patient", "id": _fhir_id(member["id"]), "identifier": ident("member", member["id"]),
+                                      "name": [{"text": member["name"]}],
+                                      "gender": {"M": "male", "F": "female"}.get(member.get("gender"), "unknown")}},
+        {"fullUrl": oid, "resource": {"resourceType": "Organization", "id": "hospital", "identifier": ident("hospital", "demo-hfr"),
+                                      "name": f.get("hospital_name") or claim.get("hospital") or "Hospital"}},
+        {"fullUrl": iid, "resource": {"resourceType": "Organization", "id": "insurer", "identifier": ident("insurer", policy["insurer"]),
+                                      "name": policy["insurer"]}},
+        {"fullUrl": cid, "resource": {"resourceType": "Coverage", "id": "coverage", "status": "active",
+                                      "identifier": ident("policy", policy.get("policy_number") or policy["id"]),
+                                      "subscriberId": policy.get("policy_number"), "beneficiary": {"reference": pid}, "payor": [{"reference": iid}],
+                                      **({"period": {k: v for k, v in (("start", policy.get("start_date")), ("end", policy.get("end_date"))) if v}}
+                                         if policy.get("start_date") or policy.get("end_date") else {})}},
     ]
     for d in store.find("document", claim_id=claim["id"]):
-        entries.append({"fullUrl": f"DocumentReference/{d['id']}", "resource": {
-            "resourceType": "DocumentReference", "id": d["id"], "status": "current", "type": {"text": d.get("doc_type")},
-            "description": d.get("filename"), "subject": {"reference": pid}}})
-    return {"resourceType": "Bundle", "id": claim["id"], "type": "collection", "timestamp": store.now(),
+        entries.append({"fullUrl": urn(d["id"]), "resource": {
+            "resourceType": "DocumentReference", "id": _fhir_id(d["id"]), "status": "current",
+            "type": {"text": d.get("doc_type") or "other"}, "subject": {"reference": pid},
+            "content": [{"attachment": {"contentType": d.get("mime") or "application/pdf", "title": d.get("filename") or d["id"]}}]}})
+    return {"resourceType": "Bundle", "id": _fhir_id(claim["id"]), "type": "collection", "timestamp": store.now(),
             "meta": {"profile": ["https://nrces.in/ndhm/fhir/r4/StructureDefinition/ClaimBundle"]},
-            "identifier": {"system": "https://hcx.example/claims", "value": claim.get("insurer_ref") or claim["id"]},
+            "identifier": {"system": f"{FHIR_ID_SYSTEM}/claim", "value": claim.get("insurer_ref") or claim["id"]},
             "entry": entries}
 
 

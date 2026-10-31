@@ -14,7 +14,7 @@ See [PRD.md](PRD.md) for the full product spec.
 
 ```bash
 cd backend
-python3 -m venv .venv && .venv/bin/pip install fastapi "uvicorn[standard]" httpx python-multipart pymupdf pytest python-dotenv
+python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
 echo "SARVAM_API_KEY=<your key>" > .env
 .venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8787 --reload
 ```

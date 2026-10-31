@@ -316,11 +316,9 @@ def hospital_chat(body: HospitalChatIn):
     except SarvamError as e:
         raise HTTPException(502, str(e))
     if out["ready"]:
-        out["check"] = engine.hospital_check(p, {k: (float(v) if k in ("room_rent_per_day", "expected_days", "estimated_bill") and v not in (None, "") else v)
-                                                 for k, v in out["facts"].items()})
-        if out.pop("forced", False):  # the model was still asking questions, but we already know enough: lead with the result
-            out["reply"] = tools.summarise_check(p, out["check"], body.lang)
         store.audit("ai", "hospital_chat", "Collected stay details by conversation and ran the policy check", p["id"], {"facts": out["facts"]})
+    else:
+        out.pop("check", None)  # partial checks shape the reply; the full result card waits until the key facts are known
     return out
 
 

@@ -329,3 +329,54 @@ def test_speaking_the_same_text_twice_replays_from_cache(monkeypatch):
     first = sarvam.tts("Your claim is approved, test replay.", "en-IN")
     assert sarvam.tts("Your claim is approved, test replay.", "en-IN") == first  # used to raise KeyError: 'value'
     assert len(calls) == 1 and calls[0]["model"] == "bulbul:v4-flash" and calls[0]["enable_preprocessing"] is True
+
+
+def test_stay_chat_answers_the_question_from_the_rules_before_asking(api, monkeypatch):
+    """'Room rent is 10000, should I go ahead?' must get the room-limit answer, not just 'who is in hospital?'."""
+    from app.ai import sarvam
+    seen = {}
+
+    def fake_chat(msgs, **kw):
+        seen["ctx"] = __import__("json").loads(msgs[1]["content"])
+        seen["sys"] = msgs[0]["content"]
+        return {"reply": "ok", "facts": {}}
+
+    monkeypatch.setattr(sarvam, "chat", fake_chat)
+    pol = api.post("/samples/sunita_gallbladder/policy").json()
+    msgs = [{"role": "user", "content": "My room rent is 10000 per day, should I go ahead with it?"}]
+    out = api.post("/hospital/chat", json={"policy_id": pol["id"], "messages": msgs, "lang": "en-IN"}).json()
+    assert out["facts"]["room_rent_per_day"] == 10000
+    titles = " ".join(f["title"] for f in seen["ctx"]["RULE_FINDINGS"])
+    assert "above your limit of ₹5,000" in titles  # the model is handed the answer, computed by rules
+    assert seen["ctx"]["ASK_NEXT"] == "the illness or treatment"  # one question, the one that matters most
+    assert "answer it FIRST" in seen["sys"] and "Greet briefly once" in seen["sys"]
+
+
+def test_stay_chat_does_not_greet_again(api, monkeypatch):
+    from app.ai import sarvam
+    seen = {}
+    monkeypatch.setattr(sarvam, "chat", lambda msgs, **kw: seen.update(sys=msgs[0]["content"]) or {"reply": "ok", "facts": {}})
+    pol = api.post("/samples/sunita_gallbladder/policy").json()
+    msgs = [{"role": "user", "content": "hi"}, {"role": "assistant", "content": "Hello"}, {"role": "user", "content": "I think"}]
+    api.post("/hospital/chat", json={"policy_id": pol["id"], "messages": msgs, "lang": "en-IN"})
+    assert "Do not greet again" in seen["sys"] and "did not catch it" in seen["sys"]
+
+
+def test_repeated_sentences_are_dropped():
+    from app.ai.tools import tidy_reply
+    assert tidy_reply("10% co-pay भी लगेगा। कमरा बदलें। 10% co-pay भी लगेगा।") == "10% co-pay भी लगेगा। कमरा बदलें।"
+
+
+def test_nhcx_claim_pack_is_valid_fhir_r4(api):
+    """Checked against the FHIR R4 schema (fhir.resources). The NRCeS profile itself needs the HL7 validator and real ids."""
+    from fhir.resources.R4B.bundle import Bundle
+    from tests.conftest import start_claim
+    cid = start_claim(api)
+    api.post(f"/claims/{cid}/fill-mode", json={"mode": "ai"})
+    b = api.get(f"/claims/{cid}/fhir").json()
+    Bundle.model_validate(b)
+    kinds = [e["resource"]["resourceType"] for e in b["entry"]]
+    assert kinds[0] == "Claim" and {"Patient", "Coverage", "Organization", "DocumentReference"} <= set(kinds)
+    assert all(e["fullUrl"].startswith("urn:uuid:") for e in b["entry"])
+    claim = b["entry"][0]["resource"]
+    assert claim["total"]["value"] == 110000 and len(claim["item"]) == 14

@@ -277,10 +277,14 @@ def hospital_check(policy: dict, facts: dict) -> dict:
             estimated_bill}
     """
     out = {"findings": [], "actions": [], "documents": [], "deadlines": {}, "estimate": None}
-    member = next((m for m in policy.get("members", []) if m["id"] == facts.get("member_id")), None) or policy["members"][0]
+    # The patient may not be known yet (the chat asks for it later). Then skip only the person-specific rules:
+    # declared pre-existing conditions and age-based co-pay. Everything else is policy-wide.
+    known = next((m for m in policy.get("members", []) if m["id"] == facts.get("member_id")), None)
+    member = known or {"id": None, "ped": [], "age": None}
     admission = _d(facts.get("admission_date")) or date.today()
 
-    wp = check_waiting_periods(policy, member, admission, facts.get("diagnosis") or facts.get("procedure") or "", bool(facts.get("is_accident")))
+    condition = f"{facts.get('diagnosis') or ''} {facts.get('procedure') or ''}".strip()
+    wp = check_waiting_periods(policy, member, admission, condition, bool(facts.get("is_accident")))
     for w in wp:
         out["findings"].append({"severity": "high", "title": "Claim may be rejected", "detail": w["reason"], "clause_id": w.get("clause_id")})
         out["actions"].append("Talk to the insurer's helpline before major expenses; ask the hospital for an estimate you can pay yourself.")
@@ -316,7 +320,9 @@ def hospital_check(policy: dict, facts: dict) -> dict:
             out["findings"].append({"severity": "medium", "title": f"{sl['procedure'].title()} has a limit of ₹{sl['limit']:,.0f}", "detail": "Anything above this is paid by you.", "clause_id": clause(policy, "sub_limits")})
 
     cp = policy.get("copay") or {}
-    if cp.get("percent") and not (cp.get("age_threshold") and (member.get("age") or 0) < cp["age_threshold"]):
+    if cp.get("percent") and cp.get("age_threshold") and not known:
+        out["findings"].append({"severity": "medium", "title": f"{cp['percent']:.0f}% co-pay if the patient is {cp['age_threshold']} or older", "detail": f"Patients aged {cp['age_threshold']}+ pay {cp['percent']:.0f}% of the admissible amount.", "clause_id": clause(policy, "copay")})
+    elif cp.get("percent") and not (cp.get("age_threshold") and (member.get("age") or 0) < cp["age_threshold"]):
         out["findings"].append({"severity": "medium", "title": f"{cp['percent']:.0f}% co-pay applies", "detail": f"You pay {cp['percent']:.0f}% of the admissible amount.", "clause_id": clause(policy, "copay")})
 
     if not policy.get("consumables_cover"):
@@ -333,7 +339,7 @@ def hospital_check(policy: dict, facts: dict) -> dict:
             {"name": "Medicines and consumables", "category": "pharmacy", "amount": est * 0.3},
             {"name": "Diagnostics", "category": "diagnostics", "amount": est * 0.15},
         ]
-        out["estimate"] = compute(policy, {"member_id": member["id"], "admission_date": str(admission), "diagnosis": facts.get("diagnosis", ""),
+        out["estimate"] = compute(policy, {"member_id": member["id"] or policy["members"][0]["id"], "admission_date": str(admission), "diagnosis": facts.get("diagnosis", ""),
                                            "procedure": facts.get("procedure", ""), "room_days": days, "line_items": lines,
                                            "is_accident": facts.get("is_accident")})
 

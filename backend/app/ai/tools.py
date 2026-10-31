@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 from datetime import date
 
 import pymupdf
@@ -195,39 +196,122 @@ FACT_KEYS = ["member_id", "admission_type", "admission_date", "room_category", "
              "diagnosis", "procedure", "is_accident", "estimated_bill", "claim_type"]
 
 
-def hospital_chat(policy: dict, messages: list[dict], facts: dict, lang: str) -> dict:
-    """Talk with the user about their hospital stay; pull out facts for the rule engine.
+NUMERIC_FACTS = ("room_rent_per_day", "expected_days", "estimated_bill")
 
-    Returns {"reply": str, "facts": {...}, "ready": bool}.
+
+def stay_facts_for_rules(facts: dict) -> dict:
+    out = {}
+    for k, v in facts.items():
+        if k in NUMERIC_FACTS:
+            try:
+                out[k] = float(v) if v not in (None, "") else None
+            except (TypeError, ValueError):
+                out[k] = None
+        else:
+            out[k] = v
+    return out
+
+
+def missing_stay_facts(policy: dict, facts: dict) -> list[str]:
+    """Facts still unknown, most outcome-changing first. Only facts that can change this policy's answer are listed."""
+    out = []
+    has_cap = (policy.get("room_rent") or {}).get("type") not in (None, "none")
+    if has_cap and not (facts.get("room_rent_per_day") or facts.get("room_category")):
+        out.append("room rent per day (or the room type)")
+    if not (facts.get("diagnosis") or facts.get("procedure")):
+        out.append("the illness or treatment")
+    person_rules = any(m.get("ped") for m in policy.get("members", [])) or (policy.get("copay") or {}).get("age_threshold")
+    if not facts.get("member_id") and (person_rules or len(policy.get("members", [])) > 1):
+        out.append("who is in hospital")
+    if not facts.get("admission_type"):
+        out.append("whether it was an emergency or a planned admission")
+    return out
+
+
+def stay_ready(policy: dict, facts: dict) -> bool:
+    """Enough for the full result card: room and treatment known, and the patient if person-specific rules exist."""
+    missing = missing_stay_facts(policy, facts)
+    return not any(m.startswith(("room rent", "the illness", "who is")) for m in missing)
+
+
+def tidy_reply(text: str) -> str:
+    """Drop sentences the model repeated word for word (it sometimes says the co-pay line twice)."""
+    parts = re.split(r"(?<=[.!?।])\s+", text)
+    seen, out = set(), []
+    for p in parts:
+        key = re.sub(r"[\W_]+", "", p.lower())
+        if key and key in seen:
+            continue
+        seen.add(key)
+        out.append(p)
+    return " ".join(out).strip()
+
+
+def hospital_chat(policy: dict, messages: list[dict], facts: dict, lang: str) -> dict:
+    """One turn of the hospital-stay chat. Harness, in order:
+
+    1. Read facts from the user's own words with rules (stay_facts), so nothing depends on the model.
+    2. Run the rule engine on whatever is known, even if partial (room rent alone is enough for the room check).
+    3. One model call: answer the user's actual question from those rule findings, ask for at most one missing fact
+       (the one that changes the answer most), and pick up any extra facts.
+    Returns {"reply", "facts", "ready", "check"}; check is the rule-engine result the reply was based on.
     """
-    members = [{"id": m["id"], "name": m["name"], "relation": m["relation"]} for m in policy.get("members", [])]
-    sys = (GUARDRAIL + "\nYou are helping a family that is in hospital right now. Collect, in a friendly conversational way, "
-           "the facts needed to check the stay against the policy. Ask at most one or two short questions at a time. "
-           "Never mention internal ids, field names or date formats to the user: ask who is in hospital by name, and for dates ask in plain words. "
-           "Facts: member_id (choose from MEMBERS), admission_type (emergency|planned), admission_date (YYYY-MM-DD), room_category "
-           "(general_ward|twin_sharing|single_private|deluxe|icu), room_rent_per_day (number, rupees), expected_days (number), "
-           "diagnosis and procedure (always written in English medical terms, e.g. 'cholelithiasis', 'laparoscopic cholecystectomy', 'knee replacement'), is_accident (bool), estimated_bill (number, optional), claim_type (cashless|reimbursement). "
-           "A bill is NOT required; never insist on one. Once you know at least the member, room rent or category, and the "
-           "illness or procedure, set ready=true and say you are checking the policy. " + lang_instruction(lang) +
-           "\nReply as JSON: {\"reply\": str, \"facts\": {only facts known so far}, \"ready\": bool}.")
-    ctx = f"MEMBERS: {json.dumps(members, ensure_ascii=False)}\nKNOWN FACTS: {json.dumps(facts, ensure_ascii=False)}\nTODAY: {__import__('datetime').date.today()}"
-    msgs = [{"role": "system", "content": sys}, {"role": "system", "content": ctx}] + messages[-12:]
-    try:
-        out = sarvam.chat(msgs, json_mode=True, task="hospital_chat", use_cache=True, max_tokens=800)
-    except SarvamError:
-        out = {}  # AI unreachable: keep going on what the user's own words give us, so the stay check still runs
+    from ..rules import engine
+
     merged = dict(facts)
-    merged.update({k: v for k, v in (out.get("facts") or {}).items() if k in FACT_KEYS and v not in (None, "")})
-    # The model sometimes returns no facts. Fill the gaps from the user's own words; never override what is already known.
     said = " ".join(m["content"] for m in messages if m.get("role") == "user")
     for k, v in stay_facts.extract(said, policy).items():
         merged.setdefault(k, v)
-    enough = bool(merged.get("member_id") and (merged.get("room_rent_per_day") or merged.get("room_category")) and (merged.get("diagnosis") or merged.get("procedure")))
-    reply = out.get("reply") or ""
-    if not reply and not enough:
-        reply = ("I could not reach the AI assistant just now, so I am reading what you type. Please tell me who is in hospital, "
-                 "the room type and its rent per day, and the treatment.")
-    return {"reply": reply, "facts": merged, "ready": bool(out.get("ready")) or enough, "forced": enough and not out.get("ready")}
+    check = engine.hospital_check(policy, stay_facts_for_rules(merged))
+    missing = missing_stay_facts(policy, merged)
+
+    members = [{"id": m["id"], "name": m["name"], "relation": m["relation"]} for m in policy.get("members", [])]
+    first_turn = sum(1 for m in messages if m.get("role") == "assistant") == 0
+    findings = [{k: f.get(k) for k in ("severity", "title", "detail", "clause_id")} for f in check["findings"]]
+    sys = (GUARDRAIL + "\nYou are on a chat with a family that is in hospital right now. How to reply:\n"
+           "1. If the user asked something (e.g. 'should I take this room?'), answer it FIRST, directly, using RULE_FINDINGS: say what it "
+           "means in rupees or percent as given there, and what to do. Never invent limits or amounts that are not in RULE_FINDINGS. "
+           "Proportionate deduction cuts doctor, nursing, OT and procedure charges only; medicines, implants and tests are never cut by it.\n"
+           "2. End with exactly ONE question, about ASK_NEXT only, in plain words (by name for people). Never ask two things. "
+           "If ASK_NEXT is null, say the full check is ready below instead of asking.\n"
+           "3. At most 4 short sentences, under 70 words in total. " + ("Greet briefly once. " if first_turn else "Do not greet again and do not repeat sympathy lines. ") +
+           "Never mention ids, field names or date formats. A bill is NOT required; never ask for one.\n"
+           "4. If the last message is unclear or cut off (like 'I think'), say you did not catch it and ask the same thing in one line.\n"
+           "Also extract any new facts from the conversation: member_id (from MEMBERS), admission_type (emergency|planned), "
+           "admission_date (YYYY-MM-DD), room_category (general_ward|twin_sharing|single_private|deluxe|icu), room_rent_per_day (number), "
+           "expected_days (number), diagnosis and procedure (in English medical terms, e.g. 'cholelithiasis', 'knee replacement'), "
+           "is_accident (bool), estimated_bill (number). " + lang_instruction(lang) +
+           '\nReply as JSON: {"reply": str, "facts": {only facts stated by the user}}.')
+    ctx = {"MEMBERS": members, "KNOWN_FACTS": merged, "RULE_FINDINGS": findings, "WHAT_TO_DO": check["actions"][:3],
+           "ASK_NEXT": missing[0] if missing else None, "TODAY": str(__import__("datetime").date.today())}
+    msgs = [{"role": "system", "content": sys}, {"role": "system", "content": json.dumps(ctx, ensure_ascii=False)}] + messages[-12:]
+    try:
+        out = sarvam.chat(msgs, json_mode=True, task="hospital_chat", use_cache=True, max_tokens=700, temperature=0.2)
+    except SarvamError:
+        out = {}  # AI unreachable: the rules still answer below
+    for k, v in (out.get("facts") or {}).items():
+        if k in FACT_KEYS and v not in (None, "") and k not in merged:
+            merged[k] = v
+    if out.get("facts"):  # the model found more: re-run the rules so the result card matches
+        check = engine.hospital_check(policy, stay_facts_for_rules(merged))
+    reply = tidy_reply((out.get("reply") or "").strip())
+    ask_next = missing_stay_facts(policy, merged)
+    if reply and ask_next and not re.search(r"[?？]", reply):  # the model forgot to ask: add the one question
+        question = f"Please tell me {ask_next[0]}."
+        try:
+            question = sarvam.translate(question, lang)
+        except SarvamError:
+            pass
+        reply = f"{reply} {question}"
+    if not reply:  # no model: say what the rules found (only if serious), then ask
+        top = next((f for f in check["findings"] if f["severity"] == "high"), None)
+        ask = missing_stay_facts(policy, merged)
+        if not any(merged.get(k) for k in ("member_id", "room_rent_per_day", "room_category", "diagnosis", "procedure")):
+            question = "Please tell me who is in hospital, the room type and its rent per day, and the treatment."
+        else:
+            question = f"Please tell me {ask[0]}." if ask else "Your full check is ready below."
+        reply = " ".join(filter(None, [f"{top['title']}. {top['detail']}" if top else "", question]))
+    return {"reply": reply, "facts": merged, "ready": stay_ready(policy, merged), "check": check}
 
 
 def summarise_check(policy: dict, check: dict, lang: str) -> str:
@@ -300,7 +384,8 @@ def assistant(messages: list[dict], lang: str, context: dict) -> str:
            "If the user shares a screenshot or document, its extracted text is given as ATTACHMENT. "
            "You keep one running conversation with this user across visits. In CONTEXT, earlier_conversation_summary covers older messages and "
            "previous_session_ended says when they last talked to you. Build on that instead of starting over, and when the user says continue, "
-           "pick up the last open point. If CONTEXT has claim.next_step, that is the correct next action from the rule engine: "
+           "pick up the last open point. Answer the user's actual question first, in at most 5 short sentences unless they ask for detail; "
+           "greet only in your very first reply, never again. If CONTEXT has claim.next_step, that is the correct next action from the rule engine: "
            "never advise a different step, and never skip ahead on the escalation ladder. " + lang_instruction(lang))
     msgs = [{"role": "system", "content": sys}, {"role": "system", "content": "CONTEXT: " + json.dumps(context, ensure_ascii=False)[:24000]}]
     msgs += messages[-16:]

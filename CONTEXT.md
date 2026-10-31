@@ -156,6 +156,7 @@ After an appeal is sent, the next `advance` makes the mock insurer answer it fro
 | Audit log | Every AI action, consent and submission goes through `store.audit()` and shows on the app's "Privacy & AI activity" screen. |
 | TTS | `GET /assistant/tts.wav?text=&lang=` returns a wav. The app splits text into sentence chunks (`speechChunks`), plays the first as soon as it is ready and prefetches the rest, so speech starts in about 2 s. Replies to spoken questions are read out automatically. |
 | UI translation | `POST /i18n` translates the `EN` strings dictionary once per language, cached on disk. |
+| Hospital chat harness | Each turn: `stay_facts` reads facts from the user's words, the rule engine runs on whatever is known (room rent alone is enough), then one model call answers the user's question from `RULE_FINDINGS` and asks exactly one question (`ASK_NEXT`, the fact that changes the answer most). No greeting after the first turn, under 70 words. Repeated sentences are dropped and a missing question is added in code. The patient is only needed when the policy has person-specific rules (declared conditions, age co-pay). |
 | Hospital chat fallback | `ai/stay_facts.py` reads room, rent, illness and patient from the user's own words (English, Hindi, Marathi) and fills only what the LLM missed. The stay check works even if Sarvam is down. |
 | Human review | Documents read under 60% confidence, poor policy reads (6+ uncertain fields) and decisions the rules can't explain open a mock review ticket. |
 | Assistant memory | One thread per claim (or policy, or general). The model gets the last 16 messages plus a rolling summary. Screenshot text is saved with its message, so follow-ups still see it. `previous_session_ended` is sent only after a 30-minute gap. |
@@ -252,7 +253,7 @@ On 31 Oct the laptop's Wi-Fi IP was `10.50.123.136`. If the phone switches to th
 - `POST /claims/{cid}/appeal/send`
 - `POST /claims/{cid}/appeal/dismiss`
 - `GET /ombudsman?pincode=`
-- `GET /claims/{cid}/fhir`
+- `GET /claims/{cid}/fhir` (FHIR R4 Bundle shaped after the NRCeS ClaimBundle; valid against the R4 schema in tests via `fhir.resources`; not yet validated against NRCeS/NHCX profiles, which need the HL7 validator and real ABHA, HFR and insurer codes)
 - `GET /claims/{cid}/form.pdf`
 - `GET /claims/{cid}/bridge`
 - `POST /claims/{cid}/bridge/accept` (body `{"consent": true}`)

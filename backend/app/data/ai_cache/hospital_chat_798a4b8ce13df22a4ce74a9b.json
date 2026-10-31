@@ -1,0 +1,9 @@
+{
+ "value": {
+  "reply": "हाँ, आप यह रूम ले सकते हैं। लेकिन क्योंकि आपका रूम रेंट ₹10,000/दिन है, जो आपकी ₹5,000/दिन की लिमिट से ज़्यादा है, तो डॉक्टर, नर्सिंग और OT के चार्ज पर 50% proportionate deduction लगेगा। Medicines और tests पर कोई असर नहीं पड़ेगा।",
+  "facts": {
+   "room_rent_per_day": 10000,
+   "room_category": "single_private"
+  }
+ }
+}
