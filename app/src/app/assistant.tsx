@@ -8,6 +8,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { send, upload } from '@/lib/api';
 import { useApp } from '@/lib/app-context';
 import { C } from '@/lib/theme';
+import { AssistantAvatar } from '@/ui/assistant-avatar';
 import { Btn, Card } from '@/ui/kit';
 import { ListenButton, MicButton } from '@/ui/voice';
 
@@ -82,9 +83,7 @@ export default function Assistant() {
   return (
     <KeyboardAvoidingView style={{ flex: 1, backgroundColor: '#fff' }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
       <View style={{ paddingTop: insets.top + 8, paddingHorizontal: 16, paddingBottom: 10, flexDirection: 'row', alignItems: 'center', gap: 10, borderBottomWidth: 1, borderBottomColor: C.line }}>
-        <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: C.navy, alignItems: 'center', justifyContent: 'center' }}>
-          <Ionicons name="sparkles" size={18} color={C.highlight} />
-        </View>
+        <AssistantAvatar size={44} />
         <View style={{ flex: 1 }}>
           <Text style={{ fontWeight: '800', fontSize: 16 }}>Claim-to-Cash assistant</Text>
           <Text style={{ color: C.sub, fontSize: 12 }}>Answers in {langName} · knows your {assistantCtx.claim_id ? 'claim' : 'policy'}</Text>
@@ -94,8 +93,11 @@ export default function Assistant() {
         </Pressable>
       </View>
       <ScrollView ref={scroll} contentContainerStyle={{ padding: 16, gap: 12 }} keyboardShouldPersistTaps="handled">
-        <View style={{ backgroundColor: C.paleBlue, borderRadius: 16, padding: 12, maxWidth: '90%' }}>
-          <Text style={{ color: C.text }}>Hi! Ask me anything about your policy or claim. You can speak, type, or share a screenshot of an insurer message or letter.</Text>
+        <View style={{ flexDirection: 'row', gap: 8, alignItems: 'flex-end', maxWidth: '94%' }}>
+          <AssistantAvatar size={32} />
+          <View style={{ flexShrink: 1, backgroundColor: C.paleBlue, borderRadius: 16, borderBottomLeftRadius: 4, padding: 12 }}>
+            <Text style={{ color: C.text }}>Hi! Ask me anything about your policy or claim. You can speak, type, or share a screenshot of an insurer message or letter.</Text>
+          </View>
         </View>
         {msgs.length === 0 ? (
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>

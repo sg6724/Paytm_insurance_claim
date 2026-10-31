@@ -1,4 +1,3 @@
-import Ionicons from '@expo/vector-icons/Ionicons';
 import { router, Stack, usePathname } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
@@ -9,6 +8,7 @@ import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-cont
 import { API_BASE } from '@/lib/api';
 import { AppProvider, useApp } from '@/lib/app-context';
 import { C, shadow } from '@/lib/theme';
+import { AssistantAvatar } from '@/ui/assistant-avatar';
 
 SplashScreen.preventAutoHideAsync();
 
@@ -22,9 +22,9 @@ function AskFab() {
     <Pressable
       onPress={() => router.push('/assistant')}
       accessibilityLabel="Ask the Claim-to-Cash assistant"
-      style={{ position: 'absolute', right: 16, bottom: insets.bottom + 92, backgroundColor: C.navy, borderRadius: 28, paddingHorizontal: 16, height: 52, flexDirection: 'row', alignItems: 'center', gap: 8, ...shadow, elevation: 6 }}>
-      <Ionicons name="sparkles" size={18} color={C.highlight} />
-      <Text style={{ color: '#fff', fontWeight: '700' }}>{t('ask')}</Text>
+      style={{ position: 'absolute', right: 16, bottom: insets.bottom + 92, alignItems: 'center', gap: 2, ...shadow, elevation: 6 }}>
+      <AssistantAvatar size={60} />
+      <Text style={{ color: C.navy, fontWeight: '800', fontSize: 11 }}>{t('ask')}</Text>
     </Pressable>
   );
 }
