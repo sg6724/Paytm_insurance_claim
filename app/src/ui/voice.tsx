@@ -33,7 +33,7 @@ export function useVoiceInput(onText: (t: string) => void) {
   const recorder = useAudioRecorder({ ...RecordingPresets.HIGH_QUALITY, isMeteringEnabled: true });
   const state = useAudioRecorderState(recorder, 150);
   const [busy, setBusy] = useState(false);
-  const level = useRef({ floor: 0, heard: false, lastLoud: 0, startedAt: 0, stopping: false });
+  const level = useRef({ floor: 0, heard: false, lastLoud: 0, startedAt: 0, stopping: false, loggedAt: 0 });
 
   async function start() {
     stopActiveSpeaker?.();
@@ -43,7 +43,7 @@ export function useVoiceInput(onText: (t: string) => void) {
       await setAudioModeAsync({ playsInSilentMode: true, allowsRecording: true });
       await recorder.prepareToRecordAsync();
       recorder.record();
-      level.current = { floor: 0, heard: false, lastLoud: Date.now(), startedAt: Date.now(), stopping: false };
+      level.current = { floor: 0, heard: false, lastLoud: Date.now(), startedAt: Date.now(), stopping: false, loggedAt: 0 };
     } catch (e: any) {
       voiceProblem(`Could not start the microphone. ${e?.message ?? ''}`);
     }
@@ -67,18 +67,29 @@ export function useVoiceInput(onText: (t: string) => void) {
     }
   }
 
-  // Auto-stop: learn the room's noise level for the first half second, then stop after a pause in speech.
+  // Auto-stop: the quietest level heard so far is the room; clearly louder is speech. After the user has spoken,
+  // a pause near the room level for SILENCE_MS ends the recording. (Learning the room only from the first moment
+  // fails when people start talking straight away.)
   useEffect(() => {
     if (!state.isRecording) return;
     const l = level.current;
     const now = Date.now();
     const m = state.metering;
-    if (typeof m === 'number') {
-      if (now - l.startedAt < 500) l.floor = l.floor === 0 ? m : Math.min(l.floor, m);
-      else if (m > l.floor + LOUDER_DB) {
+    if (typeof m === 'number' && m > -159) {
+      l.floor = l.floor === 0 ? m : Math.min(l.floor, m);
+      if (m > l.floor + LOUDER_DB) {
         l.heard = true;
         l.lastLoud = now;
+      } else if (m > l.floor + LOUDER_DB / 2 && l.heard) {
+        l.lastLoud = now; // soft speech between words still counts
       }
+      if (now - l.loggedAt > 1000) {
+        l.loggedAt = now;
+        console.log('[voice] level', Math.round(m), 'room', Math.round(l.floor), l.heard ? 'speech heard' : 'waiting for speech');
+      }
+    } else if (now - l.loggedAt > 2000) {
+      l.loggedAt = now;
+      console.log('[voice] no mic level reported (metering)', m);
     }
     const quietTooLong = l.heard && now - l.lastLoud > SILENCE_MS;
     if ((quietTooLong || state.durationMillis > MAX_MS) && !l.stopping) setTimeout(stop, 0);

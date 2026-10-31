@@ -11,7 +11,7 @@ from pathlib import Path
 
 from .config import DB_PATH
 
-_lock = threading.Lock()
+_lock = threading.RLock()
 _conn: sqlite3.Connection | None = None
 
 
@@ -43,12 +43,14 @@ def put(kind: str, obj: dict) -> dict:
 
 
 def get(kind: str, id: str) -> dict | None:
-    row = conn().execute("SELECT data FROM docs WHERE kind=? AND id=?", (kind, id)).fetchone()
+    with _lock:  # one shared connection: reads must not overlap writes from other request threads
+        row = conn().execute("SELECT data FROM docs WHERE kind=? AND id=?", (kind, id)).fetchone()
     return json.loads(row[0]) if row else None
 
 
 def find(kind: str, **match) -> list[dict]:
-    rows = conn().execute("SELECT data FROM docs WHERE kind=? ORDER BY created DESC", (kind,)).fetchall()
+    with _lock:
+        rows = conn().execute("SELECT data FROM docs WHERE kind=? ORDER BY created DESC", (kind,)).fetchall()
     out = [json.loads(r[0]) for r in rows]
     return [o for o in out if all(o.get(k) == v for k, v in match.items())]
 

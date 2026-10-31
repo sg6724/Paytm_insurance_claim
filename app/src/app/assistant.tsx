@@ -3,7 +3,7 @@ import * as DocumentPicker from 'expo-document-picker';
 import * as ImagePicker from 'expo-image-picker';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Image, KeyboardAvoidingView, Platform, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { fmtTime, get, send, upload } from '@/lib/api';
@@ -13,7 +13,8 @@ import { AssistantAvatar } from '@/ui/assistant-avatar';
 import { Btn, Card, Row, Sheet } from '@/ui/kit';
 import { ListenButton, MicButton, useSpeaker } from '@/ui/voice';
 
-type Msg = { role: 'user' | 'assistant'; content: string; image?: string | boolean; file?: string; pending?: boolean };
+type Msg = { role: 'user' | 'assistant'; content: string; image?: string | boolean; file?: string };
+type Attachment = { id: number; kind: 'image' | 'pdf'; name: string; uri: string; status: 'reading' | 'ready' | 'error'; text?: string; error?: string };
 type AskOpts = { attachment?: string; image?: string; file?: string; spoken?: boolean };
 type Recap = { recap: string | null; next_step: string | null; last_at: string };
 
@@ -37,6 +38,7 @@ export default function Assistant() {
   const scroll = useRef<any>(null);
   const speaker = useSpeaker();
   const [pickOpen, setPickOpen] = useState(false);
+  const [att, setAtt] = useState<Attachment | null>(null);
   const langName = langs.find((l) => l.code === lang)?.native ?? 'English';
 
   const scope = [assistantCtx.claim_id && `claim_id=${assistantCtx.claim_id}`, assistantCtx.policy_id && `policy_id=${assistantCtx.policy_id}`].filter(Boolean).join('&');
@@ -108,19 +110,27 @@ export default function Assistant() {
       picked = { uri: r.assets[0].uri, name: r.assets[0].name, type: 'application/pdf' };
     }
     console.log('[assistant] picked', kind, picked.name);
-    // Show the attachment straight away, so it is clear it was picked while it is being read.
-    const label = kind === 'pdf' ? `Reading ${picked.name}…` : 'Reading your screenshot…';
-    setMsgs((m) => [...m, { role: 'user', content: label, ...(kind === 'pdf' ? { file: picked!.name } : { image: picked!.uri }), pending: true }]);
-    setBusy(true);
+    // Like ChatGPT or Claude: the file waits above the input as a chip while it is read, and goes out
+    // with the user's own question when they tap send.
+    const id = Date.now();
+    setAtt({ id, kind, name: picked.name, uri: picked.uri, status: 'reading' });
     try {
       const out = await upload('/assistant/attach', picked);
-      setMsgs((m) => m.filter((x) => !x.pending));
-      setBusy(false);
-      await ask(input, kind === 'pdf' ? { attachment: out.text, file: picked.name } : { attachment: out.text, image: picked.uri });
+      setAtt((a) => (a && a.id === id ? { ...a, status: 'ready', text: out.text } : a));
     } catch (e: any) {
-      setBusy(false);
-      setMsgs((m) => [...m.filter((x) => !x.pending), { role: 'assistant', content: `I couldn't read that ${kind === 'pdf' ? 'PDF' : 'image'} (${e.message}).` }]);
+      setAtt((a) => (a && a.id === id ? { ...a, status: 'error', error: e.message } : a));
     }
+  }
+
+  function sendNow() {
+    if (att?.status === 'reading') return;
+    if (att?.status === 'ready') {
+      const fallback = att.kind === 'pdf' ? 'Please explain this document.' : 'Please explain this.';
+      ask(input.trim() || fallback, att.kind === 'pdf' ? { attachment: att.text, file: att.name } : { attachment: att.text, image: att.uri });
+      setAtt(null);
+      return;
+    }
+    ask(input);
   }
 
   async function handoff() {
@@ -164,10 +174,19 @@ export default function Assistant() {
         ) : null}
         {msgs.map((m, i) => (
           <View key={i} style={{ alignSelf: m.role === 'user' ? 'flex-end' : 'flex-start', maxWidth: '88%', backgroundColor: m.role === 'user' ? C.navy : C.paleBlue, borderRadius: 16, padding: 12, gap: 8 }}>
-            {m.image || m.file ? (
+            {typeof m.image === 'string' ? <Image source={{ uri: m.image }} style={{ width: 160, height: 160, borderRadius: 10 }} /> : null}
+            {m.file ? (
+              <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.14)', borderRadius: 10, padding: 8 }}>
+                <View style={{ width: 30, height: 30, borderRadius: 6, backgroundColor: C.red, alignItems: 'center', justifyContent: 'center' }}>
+                  <Text style={{ color: '#fff', fontWeight: '800', fontSize: 9 }}>PDF</Text>
+                </View>
+                <Text style={{ color: '#fff', fontSize: 13, fontWeight: '600', flexShrink: 1 }} numberOfLines={1}>{m.file}</Text>
+              </View>
+            ) : null}
+            {m.image === true ? (
               <View style={{ flexDirection: 'row', gap: 6, alignItems: 'center' }}>
-                <Ionicons name={m.file ? 'document-text-outline' : 'image-outline'} size={16} color="#fff" />
-                <Text style={{ color: '#fff', fontSize: 12, flexShrink: 1 }} numberOfLines={1}>{m.file ? `PDF shared: ${m.file}` : 'Screenshot shared'}</Text>
+                <Ionicons name="image-outline" size={16} color="#fff" />
+                <Text style={{ color: '#fff', fontSize: 12 }}>Screenshot shared</Text>
               </View>
             ) : null}
             <Text style={{ color: m.role === 'user' ? '#fff' : C.text, lineHeight: 20 }}>{m.content.replace(/\*\*/g, '')}</Text>
@@ -199,14 +218,35 @@ export default function Assistant() {
         ) : null}
       </ScrollView>
       <View style={{ padding: 12, paddingBottom: insets.bottom + 10, borderTopWidth: 1, borderTopColor: C.line, gap: 8 }}>
+        {att ? (
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, alignSelf: 'flex-start', maxWidth: '100%', backgroundColor: C.paleBlue, borderRadius: 14, padding: 8, paddingRight: 10, borderWidth: 1, borderColor: att.status === 'error' ? C.red : C.line }}>
+            {att.kind === 'image' ? (
+              <Image source={{ uri: att.uri }} style={{ width: 40, height: 40, borderRadius: 8 }} />
+            ) : (
+              <View style={{ width: 40, height: 40, borderRadius: 8, backgroundColor: C.red, alignItems: 'center', justifyContent: 'center' }}>
+                <Text style={{ color: '#fff', fontWeight: '800', fontSize: 11 }}>PDF</Text>
+              </View>
+            )}
+            <View style={{ flexShrink: 1 }}>
+              <Text numberOfLines={1} style={{ fontWeight: '700', color: C.text, fontSize: 13 }}>{att.kind === 'pdf' ? att.name : 'Screenshot'}</Text>
+              <Text style={{ fontSize: 12, color: att.status === 'error' ? C.red : C.sub }} numberOfLines={2}>
+                {att.status === 'reading' ? 'Reading…' : att.status === 'ready' ? 'Ready. Ask your question and send.' : `Couldn't read it: ${att.error}`}
+              </Text>
+            </View>
+            {att.status === 'reading' ? <ActivityIndicator size="small" color={C.navy} /> : null}
+            <Pressable onPress={() => setAtt(null)} hitSlop={10} accessibilityLabel="Remove attachment">
+              <Ionicons name="close-circle" size={22} color={C.sub} />
+            </Pressable>
+          </View>
+        ) : null}
         <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}>
-          <Pressable onPress={() => setPickOpen(true)} style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: C.skySoft, alignItems: 'center', justifyContent: 'center' }} accessibilityLabel="Share a screenshot or PDF">
+          <Pressable onPress={() => setPickOpen(true)} disabled={att?.status === 'reading'} style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: C.skySoft, alignItems: 'center', justifyContent: 'center' }} accessibilityLabel="Share a screenshot or PDF">
             <Ionicons name="attach" size={22} color={C.navy} />
           </Pressable>
-          <TextInput value={input} onChangeText={setInput} placeholder={t('askPlaceholder')} placeholderTextColor={C.faint} onSubmitEditing={() => ask(input)} returnKeyType="send"
+          <TextInput value={input} onChangeText={setInput} placeholder={att ? 'Ask about this file…' : t('askPlaceholder')} placeholderTextColor={C.faint} onSubmitEditing={sendNow} returnKeyType="send"
             style={{ flex: 1, borderWidth: 1.5, borderColor: C.line, borderRadius: 24, paddingHorizontal: 14, paddingVertical: 10, fontSize: 14, color: C.text }} />
           <MicButton onText={(tx) => ask(tx, { spoken: true })} size={44} />
-          <Pressable onPress={() => ask(input)} style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: C.navy, alignItems: 'center', justifyContent: 'center' }}>
+          <Pressable onPress={sendNow} disabled={att?.status === 'reading'} style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: C.navy, opacity: att?.status === 'reading' ? 0.4 : 1, alignItems: 'center', justifyContent: 'center' }}>
             <Ionicons name="send" size={18} color="#fff" />
           </Pressable>
         </View>

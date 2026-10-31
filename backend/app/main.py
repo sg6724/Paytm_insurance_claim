@@ -755,6 +755,8 @@ def assistant_chat(body: AssistantIn):
         said = next((m["content"] for m in reversed(history) if m.get("role") == "user"), "")
     try:
         reply = tools.assistant(history, body.lang, ctx)
+        if not (reply or "").strip():
+            raise SarvamError("The assistant gave an empty answer")
     except SarvamError as e:
         raise HTTPException(502, str(e))  # nothing is saved, so the user can simply ask again
     memory.append(thread, "user", said, image=bool(body.attachment) and not body.attachment_name, file=body.attachment_name, attachment=body.attachment)

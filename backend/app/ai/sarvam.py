@@ -92,8 +92,12 @@ def chat(messages: list[dict], *, json_mode: bool = False, max_tokens: int = 150
         except httpx.HTTPError as e:
             raise SarvamError(f"chat network error: {e}") from e
         if not json_mode:
-            value = content.strip()
-            break
+            if content.strip() or attempt:
+                value = content.strip()
+                break
+            # The model sometimes answers with nothing (e.g. to "let us continue"); ask once more.
+            body["messages"] = messages + [{"role": "user", "content": "Please reply now in a few short sentences."}]
+            continue
         try:
             value = _extract_json(content)
             break
@@ -137,6 +141,15 @@ def vision(prompt: str, image_bytes: bytes, mime: str = "image/jpeg", *, json_mo
     return value
 
 
+AUDIO_TYPES = {"m4a": "audio/x-m4a", "mp4": "audio/mp4", "aac": "audio/aac", "wav": "audio/wav", "mp3": "audio/mpeg",
+               "ogg": "audio/ogg", "opus": "audio/opus", "webm": "audio/webm", "flac": "audio/flac", "amr": "audio/amr", "3gp": "audio/amr"}
+
+
+def audio_type(filename: str) -> str:
+    """Sarvam only accepts listed types; Python guesses audio/mp4a-latm for .m4a, which it rejects."""
+    return AUDIO_TYPES.get(filename.rsplit(".", 1)[-1].lower(), "application/octet-stream")
+
+
 def stt(audio: bytes, filename: str = "audio.m4a", language_code: str | None = None) -> dict:
     if not available():
         raise SarvamError("Sarvam key not configured")
@@ -145,7 +158,7 @@ def stt(audio: bytes, filename: str = "audio.m4a", language_code: str | None = N
         data["language_code"] = language_code
     try:
         r = httpx.post(f"{config.SARVAM_BASE}/speech-to-text", headers=_headers(json_body=False),
-                       data=data, files={"file": (filename, audio)}, timeout=TIMEOUT)
+                       data=data, files={"file": (filename, audio, audio_type(filename))}, timeout=TIMEOUT)
         if r.status_code >= 400:
             raise SarvamError(f"stt {r.status_code}: {r.text[:300]}")
         j = r.json()

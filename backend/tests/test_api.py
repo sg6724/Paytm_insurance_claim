@@ -279,3 +279,17 @@ def test_assistant_reads_a_shared_pdf(api):
 
 def test_assistant_rejects_an_empty_file(api):
     assert api.post("/assistant/attach", files={"file": ("x.pdf", b"", "application/pdf")}).status_code == 422
+
+
+def test_recordings_are_sent_to_sarvam_with_a_type_it_accepts():
+    from app.ai.sarvam import audio_type
+    assert audio_type("voice.m4a") == "audio/x-m4a"  # Python's own guess, audio/mp4a-latm, is rejected
+    assert audio_type("recording-1.MP4") == "audio/mp4"
+    assert audio_type("x.wav") == "audio/wav" and audio_type("x.unknown") == "application/octet-stream"
+
+
+def test_an_empty_answer_is_an_error_and_is_not_saved(api, monkeypatch):
+    from app.ai import tools
+    monkeypatch.setattr(tools, "assistant", lambda m, lang, ctx: "  ")
+    assert api.post("/assistant/chat", json={"message": "Let us continue"}).status_code == 502
+    assert api.get("/assistant/thread").json()["messages"] == []
