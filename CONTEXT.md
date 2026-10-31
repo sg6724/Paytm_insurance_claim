@@ -19,7 +19,7 @@ Last updated: 31 Oct 2026, finals day.
 | Area | State |
 |---|---|
 | PRD | Done (`PRD.md`) |
-| Rule engine | Done. 96 backend tests pass: engine, API journeys, mock partners, assistant memory, stay-facts reader (`backend/tests/`) |
+| Rule engine | Done. 110 backend tests pass: engine, API journeys, mock partners, assistant memory, stay-facts reader (`backend/tests/`) |
 | Backend API + mocks + AI | Done, verified live with Sarvam |
 | Expo app (about 20 screens) | Done, `tsc` and `expo lint` clean, Android bundle builds |
 | Sample documents | Done (`demo-docs/`, served at `/demo-docs/`) |

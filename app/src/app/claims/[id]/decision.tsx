@@ -101,6 +101,8 @@ export default function Decision() {
                     <Btn title={drafting === s.step ? 'Drafting…' : 'Draft letter for me'} icon="create-outline" kind={i === 0 ? 'primary' : 'secondary'} loading={drafting === s.step} onPress={() => openDraft(s.step)} style={{ height: 44 }} />
                   ) : null}
                   {s.status === 'sent' ? <Pill text="Sent" tone="ok" /> : null}
+                  {s.reply ? <Text style={{ color: s.reply.outcome === 'reversed' ? C.green : C.text, fontWeight: '600' }}>{s.reply.text}</Text> : null}
+                  {s.status === 'sent' && !s.reply ? <Text style={{ color: C.sub, fontSize: 12 }}>{t('waitingForReply')}</Text> : null}
                 </Card>
               ))}
             </Section>

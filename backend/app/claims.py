@@ -258,6 +258,9 @@ def submit(claim: dict, policy: dict) -> dict:
 
 def advance(claim: dict, policy: dict) -> dict:
     """Move the mock insurer one step: review -> query (once) -> decision -> settlement."""
+    appeal = pending_appeal(claim)
+    if appeal:
+        return answer_appeal(claim, policy, appeal)
     st = claim.get("status")
     behaviour = claim.get("insurer_behaviour", "fair")
     if st == "submitted":
@@ -288,6 +291,43 @@ def advance(claim: dict, policy: dict) -> dict:
         else:
             claim["net_credited"] = amt
             timeline_add(claim, "settled", f"₹{amt:,.0f} credited to your bank account", "NEFT credit to the account on the claim form.")
+    return claim
+
+
+def pending_appeal(claim: dict) -> dict | None:
+    return next((a for a in claim.get("appeals", []) if not a.get("reply")), None)
+
+
+def answer_appeal(claim: dict, policy: dict, appeal: dict) -> dict:
+    """The mock insurer replies to the oldest open appeal. The rule engine decides the outcome: a deduction the policy
+    does not allow is reversed, and a decision that matches the policy stands."""
+    dec = claim["decision"]
+    analysis = analyse_decision(claim, policy)
+    disputed = analysis["disputed_amount"]
+    amount = 0
+    if dec["type"] != "rejected" and disputed:
+        outcome, amount = "reversed", disputed
+        dec["amount_approved"] += disputed
+        dec["deductions"] = [d for d in dec["deductions"] if d.get("kind") != "insurer_proportionate"]
+        dec["revised"] = True
+        dec["letter"] = _letter(claim, policy, dec["type"], dec["amount_claimed"], dec["amount_approved"], dec["deductions"])
+        text = f"Your appeal succeeded. The insurer reversed ₹{disputed:,.0f} and the approved amount is now ₹{dec['amount_approved']:,.0f}."
+        if claim.get("settled_on"):
+            policy["remaining_si"] = max(float(policy.get("remaining_si", policy["sum_insured"])) - disputed, 0)
+            store.put("policy", policy)
+            claim["net_credited"] = claim.get("net_credited", 0) + disputed
+            text += f" ₹{disputed:,.0f} has been credited to your bank account."
+        title = f"Appeal succeeded: ₹{disputed:,.0f} reversed"
+    elif dec["type"] == "rejected":
+        outcome = "upheld"
+        text = "The decision stands. " + analysis["summary"]
+        title = "Appeal answered: the rejection stands"
+    else:
+        outcome = "closed"
+        text = "No change. All deductions on this claim follow your policy terms."
+        title = "Appeal answered: no change"
+    appeal["reply"] = {"outcome": outcome, "text": text, "amount": amount, "at": store.now()}
+    timeline_add(claim, claim["status"], title, text)
     return claim
 
 
@@ -376,6 +416,8 @@ def analyse_decision(claim: dict, policy: dict) -> dict:
 def next_step(claim: dict, policy: dict) -> str | None:
     """What the user should do now, from the claim's own state. Rules only, so the recap never guesses."""
     st = claim.get("status")
+    if pending_appeal(claim):
+        return "Nothing to do right now. Your appeal is with the insurer."
     if st == "settled":
         return "Nothing is pending. This claim is settled."
     task = next((t for t in claim.get("tasks", []) if t.get("status") == "open"), None)
@@ -392,6 +434,8 @@ def next_step(claim: dict, policy: dict) -> str | None:
             return f"{rung['title']}: ₹{analysis['disputed_amount']:,.0f} looks wrongly deducted."
         if analysis["strength"] == "weak" and not claim.get("appeal_dismissed"):
             return "Read why the claim was rejected, then decide whether to appeal or look at EMI options."
+    if st in ("approved", "partially_approved"):
+        return "Nothing to do right now. The insurer will pay this claim next."
     return None
 
 
@@ -409,8 +453,8 @@ def ladder(claim: dict) -> list[dict]:
     for key, title, detail, when, due in steps:
         s = sent.get(key)
         out.append({"step": key, "title": title, "detail": detail, "when": when, "due": str(due) if due else None,
-                    "status": "sent" if s else ("available" if unlocked else "locked"), "sent_at": s and s.get("sent_at")})
-        unlocked = bool(s)
+                    "status": "sent" if s else ("available" if unlocked else "locked"), "sent_at": s and s.get("sent_at"), "reply": s and s.get("reply")})
+        unlocked = bool(s) and (s.get("reply") or {}).get("outcome") != "reversed"  # nothing left to escalate once the money is back
     return out
 
 

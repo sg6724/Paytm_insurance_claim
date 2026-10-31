@@ -65,7 +65,9 @@ def test_next_step_follows_the_claim(api, model):
     api.post(f"/claims/{cid}/advance")
     assert "6,000" in step() and "review" in step()
     api.post(f"/claims/{cid}/appeal/send", json={"step": "insurer", "text": "x"})
-    assert "grievance" in step().lower()
+    assert "appeal is with the insurer" in step()
+    assert api.post(f"/claims/{cid}/advance").json()["decision"]["amount_approved"] == 68400
+    assert "will pay" in step()
     assert api.post(f"/claims/{cid}/advance").json()["status"] == "settled"
     assert "settled" in step()
 
@@ -113,7 +115,7 @@ def test_recap_is_cached_until_the_conversation_moves(api, model, monkeypatch):
     cid = start_claim(api)
     say(api, "one", claim_id=cid)
     n = []
-    monkeypatch.setattr(tools, "recap_conversation", lambda m, s, lang: n.append(1) or "recap")
+    monkeypatch.setattr(tools, "recap_conversation", lambda m, s, lang, next_step=None: n.append(1) or "recap")
     api.get(f"/assistant/thread?claim_id={cid}")
     api.get(f"/assistant/thread?claim_id={cid}")
     assert len(n) == 1
@@ -137,3 +139,9 @@ def test_clear_chat_delete_claim_and_delete_my_data_all_remove_it(api, model):
 def test_older_clients_sending_full_history_are_still_saved(api, model):
     api.post("/assistant/chat", json={"messages": [{"role": "user", "content": "old style"}]})
     assert api.get("/assistant/thread").json()["messages"][0]["content"] == "old style"
+
+
+def test_the_model_is_told_the_rule_based_next_step(api, model):
+    cid = start_claim(api)
+    say(api, "what now?", claim_id=cid)
+    assert model[-1]["ctx"]["claim"]["next_step"] == "Finish your documents and the claim form, then check your payout."

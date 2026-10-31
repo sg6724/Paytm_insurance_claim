@@ -151,13 +151,13 @@ export default function Assistant() {
         ))}
         {recap ? (
           <Card style={{ gap: 8, backgroundColor: C.paleBlue, borderColor: '#CFE6F7' }}>
-            <Text style={{ fontWeight: '800', color: C.navy }}>Where we left off</Text>
+            <Text style={{ fontWeight: '800', color: C.navy }}>{t('whereWeLeftOff')}</Text>
             <Text style={{ color: C.faint, fontSize: 11 }}>{fmtTime(recap.last_at)}</Text>
             <Text style={{ color: C.text, lineHeight: 20 }}>{recap.recap.replace(/\*\*/g, '')}</Text>
-            {recap.next_step ? <Text style={{ color: C.text, fontWeight: '700' }}>Next: {recap.next_step}</Text> : null}
+            {recap.next_step ? <Text style={{ color: C.text, fontWeight: '700' }}>{t('nextLabel')}: {recap.next_step}</Text> : null}
             <View style={{ flexDirection: 'row', gap: 8 }}>
-              <Btn title="Continue" style={{ flex: 1, height: 40 }} onPress={() => ask('Let us continue from where we left off.')} />
-              <Btn title="Start fresh" kind="secondary" style={{ flex: 1, height: 40 }} onPress={startFresh} />
+              <Btn title={t('continueChat')} style={{ flex: 1, height: 40 }} onPress={() => ask('Let us continue from where we left off.')} />
+              <Btn title={t('startFresh')} kind="secondary" style={{ flex: 1, height: 40 }} onPress={startFresh} />
             </View>
           </Card>
         ) : null}

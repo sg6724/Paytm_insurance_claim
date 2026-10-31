@@ -365,6 +365,7 @@ def claim_view(c: dict) -> dict:
     out["policy"] = {k: p.get(k) for k in ("id", "insurer", "plan", "policy_number", "sum_insured", "members")} if p else None
     out["documents"] = store.find("document", claim_id=c["id"])
     out["checklist"] = C.checklist(c)
+    out["appeal_pending"] = bool(C.pending_appeal(c))
     if p:
         out["deadlines"] = C.deadlines(c, p)
         out["bridge_offer"] = C.bridge_offer(c, p) if not c.get("bridge") else None
@@ -549,6 +550,14 @@ def intimate(cid: str):
     return claim_view(c)
 
 
+def _localise(text: str, lang: str) -> str:
+    """Rule-written text in the user's language. If translation is down they still get it in English."""
+    try:
+        return sarvam.translate(text, lang)
+    except SarvamError:
+        return text
+
+
 @app.get("/claims/{cid}/decision")
 def decision(cid: str, lang: str = "en-IN"):
     c = must("claim", cid)
@@ -562,7 +571,11 @@ def decision(cid: str, lang: str = "en-IN"):
     if unexplained and not c.get("explain_review_ticket"):
         c["explain_review_ticket"] = flag_for_review("Decision we could not fully explain", "The insurer's amount differs from the rule engine and no cause was found", cid)["id"]
         store.put("claim", c)
-    return {"decision": c["decision"], "analysis": analysis, "explanation": text, "ladder": C.ladder(c), "lang": lang, "review_ticket": c.get("explain_review_ticket")}
+    ladder = C.ladder(c)
+    for rung in ladder:
+        if rung["reply"]:
+            rung["reply"] = {**rung["reply"], "text": _localise(rung["reply"]["text"], lang)}
+    return {"decision": c["decision"], "analysis": analysis, "explanation": text, "ladder": ladder, "lang": lang, "review_ticket": c.get("explain_review_ticket")}
 
 
 class AppealIn(BaseModel):
@@ -719,6 +732,8 @@ def assistant_chat(body: AssistantIn):
             ctx["claim"]["preflight"] = c.get("preflight")
             if c.get("decision") and p:
                 ctx["claim"]["rule_engine_review"] = C.analyse_decision(c, p)
+            if p:
+                ctx["claim"]["next_step"] = C.next_step(c, p)
     if p:
         ctx["policy"] = tools.policy_context(p)
     else:
@@ -751,11 +766,12 @@ def assistant_thread(claim_id: str | None = None, policy_id: str | None = None, 
     t = memory.load(memory.thread_id(claim_id, policy_id))
     c = store.get("claim", claim_id) if claim_id else None
     p = store.get("policy", c["policy_id"]) if c else None
-    next_step = C.next_step(c, p) if c and p else None
+    next_step_en = C.next_step(c, p) if c and p else None
+    next_step = _localise(next_step_en, lang) if next_step_en else None
     if not t["messages"]:
         return {"id": t["id"], "messages": [], "recap": None, "next_step": next_step, "last_at": None}
     if t.get("recap_n") != len(t["messages"]) or t.get("recap_lang") != lang:
-        t.update(recap=tools.recap_conversation(t["messages"], t["summary"], lang), recap_n=len(t["messages"]), recap_lang=lang)
+        t.update(recap=tools.recap_conversation(t["messages"], t["summary"], lang, next_step_en), recap_n=len(t["messages"]), recap_lang=lang)
         memory.save(t)
     return {"id": t["id"], "messages": t["messages"], "recap": t["recap"], "next_step": next_step, "last_at": t["messages"][-1]["at"]}
 

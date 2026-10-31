@@ -8,9 +8,9 @@ Audit date: 31 Oct 2026, finals day. Scope: the backend, the Expo app and the us
 
 | Check | Result |
 |---|---|
-| Backend unit and API tests (`pytest`) | **96 pass**, about 15 seconds, no network and no Sarvam key needed |
+| Backend unit and API tests (`pytest`) | **110 pass**, about 20 seconds, no network and no Sarvam key needed |
 | Live Sarvam run, 21 checks against real documents and real AI | **21 pass**, 2 slower than the 15 second target (see finding O2) |
-| Live Sarvam run of assistant memory | Saved, recapped in English and Hindi, continued correctly (see finding O7) |
+| Live Sarvam run of assistant memory | Saved, recapped in English, Hindi and Marathi, continued correctly, 3 clean runs |
 | Mock partners side by side across the three claims | **Pass after fixes** (see section 7) |
 | TypeScript (`tsc --noEmit`) | Clean |
 | Lint (`expo lint`) | Clean |
@@ -56,9 +56,6 @@ Real PDFs and photos from `demo-docs/` were read correctly: bill, discharge summ
 | O3 | Medium | The AI cache almost never hits, because prompts include dates and ids. The PRD's "works offline-ish" is only partly met. | The hospital stay chat now works without the network. Explainers and decisions fall back to templates, but in English only. |
 | O4 | Low | Asked "tell me exactly how many rupees my insurer will pay", the assistant gave no number but offered to "calculate" one once it had details. | Reword the guardrail so it points the user to the pre-flight estimate. |
 | O5 | Low | Language coverage beyond Hindi and Marathi (22 languages) was not checked one by one. Text-to-speech covers 11. | Pick the demo language and rehearse it. |
-| O7 | Medium | The AI-written recap can misstate details. Live, it called a 66.7% payout a "66.7% deduction" and named the GRO as the next stop. The rule-based Next line under it was correct (insurer first, ₹6,000). | Treat the recap as AI text. Tighten it so it quotes no percentages. |
-| O8 | Medium | The mock insurer never answers an appeal. A sent letter is logged and unlocks the next step, but ₹6,000 is never paid back, so the story stops there. | Add a mock reply if the demo needs a win at the end. |
-| O9 | Low | The Next line in the recap is English only, and the app has not been run with saved chats on a device. | Translate it through the existing UI translation. |
 | O6 | Info | Facts still to confirm before quoting them on stage (from `CONTEXT.md`): the 30-day settlement timeline and interest rule, the Ombudsman one-year window and office email addresses, and `BANK_RATE=5.75`, which is a placeholder. | Check each against its source. |
 
 ## 4. UX changes made (first-run and redundancy)
@@ -90,7 +87,8 @@ These are not bugs for a hackathon demo. They stop this from serving real custom
 - `backend/tests/test_api.py`: 26 end-to-end journeys through the HTTP API.
 - `backend/tests/test_stay_facts.py`: 10 tests on reading Hindi, Marathi and English stay descriptions.
 - `backend/tests/test_mocks.py`: 41 tests running every mock partner across the three claims, plus misuse.
-- `backend/tests/test_memory.py`: 12 tests on saved conversations, with the model stubbed.
+- `backend/tests/test_memory.py`: 13 tests on saved conversations, with the model stubbed.
+- `backend/tests/test_insurer_paths.py`: 13 tests on every rejection reason, fair and query paths, and how appeals end.
 - Run them with `cd backend && .venv/bin/python -m pytest -q tests`. They set their own temporary database and do not touch your data.
 
 ## 7. Mock partners, side by side
@@ -128,3 +126,12 @@ Paytm policies: listed, added once, and an unknown id gives 404. Fetch by policy
 ## 8. Assistant memory
 
 The assistant now keeps one thread per claim or policy between visits. Coming back shows a Where we left off card with the date, an AI recap in the chosen language, and a Next line taken from the claim's state by rules, with Continue and Start fresh. Older messages are folded into a rolling summary, so long chats stay within the prompt limit. A failed answer saves nothing. Clear chat, deleting a claim and Delete my data all remove it.
+
+## 9. Closed after the first mock audit
+
+| Was open | Now |
+|---|---|
+| The mock insurer never answered an appeal | It replies from the rule engine. Sunita's appeal reverses ₹6,000, taking ₹62,400 to ₹68,400, with a revised letter. If the claim has settled, the ₹6,000 is topped up once. Rakesh's stands, with the reason, and can still escalate. A won appeal closes the ladder |
+| Only the sample outcomes were tested | Initial waiting, pre-existing condition, exclusion and specific disease all run through submit, insurer and letter. A policy not in force is stopped at submit. Fair and query insurer paths are tested too |
+| The Next line was English only | It, the recap card labels and appeal replies now follow the chosen language. Checked live in Hindi and Marathi. If translation fails, the user sees English |
+| The recap could misstate details | It may not quote percentages or give advice. The assistant and the recap now both receive the rule-based next step, which also stops the chat advising the GRO first. Three clean live runs. It remains AI text, so this reduces the risk and does not remove it |

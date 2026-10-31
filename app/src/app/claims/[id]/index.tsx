@@ -159,7 +159,7 @@ export default function ClaimTracker() {
         {c.insurer_ref ? (
           <View style={{ flexDirection: 'row', gap: 10 }}>
             <Btn title="NHCX claim pack" kind="ghost" icon="code-slash-outline" style={{ flex: 1 }} onPress={() => router.push(`/claims/${id}/fhir`)} />
-            {c.status !== 'settled' && c.status !== 'rejected' ? (
+            {(c.status !== 'settled' && c.status !== 'rejected') || c.appeal_pending ? (
               <Btn title="Insurer: next step" kind="ghost" icon="play-forward-outline" style={{ flex: 1 }} loading={busy} onPress={advance} />
             ) : null}
           </View>

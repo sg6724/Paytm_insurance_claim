@@ -300,7 +300,8 @@ def assistant(messages: list[dict], lang: str, context: dict) -> str:
            "If the user shares a screenshot or document, its extracted text is given as ATTACHMENT. "
            "You keep one running conversation with this user across visits. In CONTEXT, earlier_conversation_summary covers older messages and "
            "previous_session_ended says when they last talked to you. Build on that instead of starting over, and when the user says continue, "
-           "pick up the last open point. " + lang_instruction(lang))
+           "pick up the last open point. If CONTEXT has claim.next_step, that is the correct next action from the rule engine: "
+           "never advise a different step, and never skip ahead on the escalation ladder. " + lang_instruction(lang))
     msgs = [{"role": "system", "content": sys}, {"role": "system", "content": "CONTEXT: " + json.dumps(context, ensure_ascii=False)[:24000]}]
     msgs += messages[-16:]
     return sarvam.chat(msgs, task="assistant", use_cache=True, max_tokens=900, temperature=0.3)
@@ -323,14 +324,16 @@ def summarise_conversation(messages: list[dict], prior: str = "") -> str:
         return f"{prior} Customer asked: {'; '.join(asked)}".strip()
 
 
-def recap_conversation(messages: list[dict], summary: str, lang: str) -> str:
+def recap_conversation(messages: list[dict], summary: str, lang: str, next_step: str | None = None) -> str:
     """What the user sees on coming back. Says what was discussed; the next step is added by the rules, not here."""
     try:
         return sarvam.chat([
             {"role": "system", "content": GUARDRAIL + " " + lang_instruction(lang)},
             {"role": "user", "content": "The customer is back. In at most 2 short sentences, addressed to them and starting with the equivalent of "
-                                        "'Last time', say what you talked about and what came out of it. Do not suggest a next step. Only use facts below.\n"
+                                        "'Last time', say what you talked about and what came out of it. Do not suggest a next step, do not say who to write to, and do not quote "
+                                        "any percentage. Only use facts below.\n"
                                         f"Older notes: {summary or 'none'}\nConversation:\n{_transcript(messages[-16:])}\n\n"
+                                        f"The correct next step is decided elsewhere ({next_step or 'none'}): leave out any advice in the conversation about what to do or who to contact. "
                                         "The conversation above may be in another language; your answer must not be. " + lang_instruction(lang)},
         ], task="thread_recap", max_tokens=250)
     except SarvamError:
