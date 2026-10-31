@@ -1,0 +1,9 @@
+{
+ "value": {
+  "reply": "Hi Samriddhi, I hope you're doing okay. To check your policy details, could you tell me which hospital you're admitted to?",
+  "facts": {
+   "claim_type": "cashless"
+  },
+  "ready": false
+ }
+}

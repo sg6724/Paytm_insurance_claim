@@ -1,0 +1,11 @@
+{
+ "value": {
+  "reply": "Thanks, Samriddhi. Could you please tell me the date you were admitted to Bharati Hospital?",
+  "facts": {
+   "claimant_name": "Samriddhi",
+   "hospital_name": "Bharati Hospital",
+   "claim_type": "cashless"
+  },
+  "ready": false
+ }
+}

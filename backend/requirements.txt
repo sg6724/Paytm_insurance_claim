@@ -2,6 +2,6 @@ fastapi
 uvicorn
 httpx
 python-multipart
-pymupdf
+pymupdf==1.28.2
 python-dotenv
 pg8000
