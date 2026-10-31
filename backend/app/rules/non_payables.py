@@ -145,8 +145,6 @@ SUBSUMED = {
     "ortho bundle": "procedure",
     "gynaec bundle": "procedure",
     "admission/discharge kit": "room",
-    "nursing charges": "room",
-    "rmo charges": "room",
     "hospitalisation for evaluation": "treatment",
     "urine container": "treatment",
     "syringe": "treatment",

@@ -149,7 +149,8 @@ def compute(policy: dict, claim: dict) -> dict:
         r.reject_reasons.append({"code": "not_in_force", "reason": "Admission date is after the policy expired.", "clause_id": None})
 
     # 1. Waiting periods & exclusions
-    wp = check_waiting_periods(policy, member, admission, claim.get("diagnosis", ""), bool(claim.get("is_accident")))
+    condition = f"{claim.get('diagnosis', '')} {claim.get('procedure', '')}"
+    wp = check_waiting_periods(policy, member, admission, condition, bool(claim.get("is_accident")))
     if wp:
         r.rejected = True
         r.reject_reasons.extend(wp)
@@ -192,7 +193,7 @@ def compute(policy: dict, claim: dict) -> dict:
             r.flags.append({"code": "room_category", "message": f"Room category above the eligible '{allowed_cat.replace('_', ' ')}'. Associated charges may be reduced proportionately."})
 
     if ratio < 0.999:
-        r.proportion = round(ratio, 4)
+        r.proportion = ratio
         cl = clause(policy, "room_rent")
         for it in admissible:
             head = it.get("category", "misc")
