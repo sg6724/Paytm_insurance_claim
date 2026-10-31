@@ -22,6 +22,9 @@ from .rules import engine
 app = FastAPI(title="Claim-to-Cash API", version="1.0")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 app.mount("/files", StaticFiles(directory=str(config.UPLOAD_DIR)), name="files")
+DEMO_DOCS = config.BASE.parent / "demo-docs"
+if DEMO_DOCS.exists():
+    app.mount("/demo-docs", StaticFiles(directory=str(DEMO_DOCS), html=True), name="demo-docs")
 
 SAMPLE_BY_ID = {p["id"]: p for p in SAMPLE_POLICIES}
 

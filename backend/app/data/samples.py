@@ -165,7 +165,7 @@ SAMPLE_CLAIMS = {
         "policy_id": "pol_shield",
         "member_id": "m_rakesh",
         "claim_type": "reimbursement",
-        "hospital": "Kokilaben Ortho Centre (demo), Mumbai",
+        "hospital": "Kokilaben Ortho Centre, Mumbai",
         "admission_date": "2026-10-20",
         "discharge_date": "2026-10-25",
         "diagnosis": "Osteoarthritis right knee",
