@@ -5,7 +5,7 @@ import { Text, View } from 'react-native';
 
 import { rupees, send } from '@/lib/api';
 import { C } from '@/lib/theme';
-import { Btn, Card, Field, Header, Screen } from '@/ui/kit';
+import { act, Btn, Card, Field, Header, Screen } from '@/ui/kit';
 
 /** Mock UPI payment at the discharge counter. No real money moves. */
 export default function Pay() {
@@ -40,14 +40,14 @@ export default function Pay() {
             title={`Pay ${amt ? rupees(Number(amt)) : ''}`}
             disabled={!Number(amt)}
             loading={busy}
-            onPress={async () => {
+            onPress={act(async () => {
               setBusy(true);
               try {
                 setTxn(await send('/mock/upi/pay', { amount: Number(amt), payee, note: 'Hospital discharge', claim_id: claim }));
               } finally {
                 setBusy(false);
               }
-            }}
+            })}
           />
         }>
         <Field label="Pay to" value={payee} onChangeText={setPayee} />

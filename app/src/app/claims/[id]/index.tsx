@@ -6,7 +6,7 @@ import { Text, View } from 'react-native';
 import { fmtDate, fmtTime, get, rupees, send } from '@/lib/api';
 import { useApp } from '@/lib/app-context';
 import { C } from '@/lib/theme';
-import { Btn, Card, Header, Loading, Money, Pill, Screen, Section, Sheet, useAsync } from '@/ui/kit';
+import { act, Btn, Card, Header, Loading, Money, Pill, Screen, Section, Sheet, useAsync } from '@/ui/kit';
 import { Tip } from '@/ui/tip';
 
 const STATUS_TONE: Record<string, any> = { settled: 'ok', approved: 'ok', partially_approved: 'warn', rejected: 'bad', query_raised: 'warn' };
@@ -160,7 +160,7 @@ export default function ClaimTracker() {
           <View style={{ flexDirection: 'row', gap: 10 }}>
             <Btn title="NHCX claim pack" kind="ghost" icon="code-slash-outline" style={{ flex: 1 }} onPress={() => router.push(`/claims/${id}/fhir`)} />
             {(c.status !== 'settled' && c.status !== 'rejected') || c.appeal_pending ? (
-              <Btn title="Insurer: next step" kind="ghost" icon="play-forward-outline" style={{ flex: 1 }} loading={busy} onPress={advance} />
+              <Btn title="Insurer: next step" kind="ghost" icon="play-forward-outline" style={{ flex: 1 }} loading={busy} onPress={act(advance)} />
             ) : null}
           </View>
         ) : null}
@@ -171,10 +171,10 @@ export default function ClaimTracker() {
         <Text style={{ color: C.text }}>{task?.detail}</Text>
         <Btn
           title="Upload the documents and reply"
-          onPress={async () => {
+          onPress={act(async () => {
             q.setData(await send(`/claims/${id}/tasks/${task.id}`, { note: 'Pharmacy bills and prescriptions uploaded' }));
             setTask(null);
-          }}
+          })}
         />
       </Sheet>
     </View>

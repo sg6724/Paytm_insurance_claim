@@ -5,7 +5,7 @@ import { Pressable, Text, View } from 'react-native';
 
 import { get, rupees, send } from '@/lib/api';
 import { C } from '@/lib/theme';
-import { Btn, Card, ErrorNote, Header, Loading, Money, Screen, Section, useAsync } from '@/ui/kit';
+import { act, Btn, Card, ErrorNote, Header, Loading, Money, Screen, Section, useAsync } from '@/ui/kit';
 
 export default function Bridge() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -53,7 +53,7 @@ export default function Bridge() {
                 title={`Get ${rupees(o.principal)}`}
                 disabled={!agree}
                 loading={busy}
-                onPress={async () => {
+                onPress={act(async () => {
                   setBusy(true);
                   try {
                     await send(`/claims/${id}/bridge/accept`, { consent: agree });
@@ -61,7 +61,7 @@ export default function Bridge() {
                   } finally {
                     setBusy(false);
                   }
-                }}
+                })}
               />
             </>
           ) : null

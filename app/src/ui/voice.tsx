@@ -18,7 +18,23 @@ import { C } from '@/lib/theme';
 const voiceProblem = (message: string) => Alert.alert('Voice', message);
 
 // Only one voice plays at a time, and the mic silences it (talking over the assistant should just work).
-let stopActiveSpeaker: (() => void) | null = null;
+// Keyed by owner, so a screen that has closed (and whose player is released) is never called.
+let activeSpeaker: { owner: number; stop: () => void } | null = null;
+const stopActiveSpeaker = () => {
+  const a = activeSpeaker;
+  activeSpeaker = null;
+  a?.stop();
+};
+
+/** Native audio calls can throw, or reject later, once a player or recorder is released. Never let that crash the app. */
+function safely(call: () => unknown) {
+  try {
+    const r = call() as any;
+    if (r && typeof r.then === 'function') r.catch((e: any) => console.log('[voice] ignored', e?.message));
+  } catch (e: any) {
+    console.log('[voice] ignored', e?.message);
+  }
+}
 
 const SILENCE_MS = 1600; // stop on its own after this long quiet, once the user has said something
 const MAX_MS = 28000; // Sarvam's live speech-to-text takes up to 30 seconds per clip
@@ -33,24 +49,31 @@ export function useVoiceInput(onText: (t: string) => void) {
   const recorder = useAudioRecorder({ ...RecordingPresets.HIGH_QUALITY, isMeteringEnabled: true });
   const state = useAudioRecorderState(recorder, 150);
   const [busy, setBusy] = useState(false);
-  const level = useRef({ floor: 0, heard: false, lastLoud: 0, startedAt: 0, stopping: false, loggedAt: 0 });
+  const level = useRef({ floor: 0, heard: false, lastLoud: 0, startedAt: 0, stopping: false, loggedAt: 0, gone: false });
+  useEffect(() => {
+    const l = level.current;
+    l.gone = false;
+    return () => {
+      l.gone = true; // the screen closed: its recorder is released
+    };
+  }, []);
 
   async function start() {
-    stopActiveSpeaker?.();
+    stopActiveSpeaker();
     try {
       const { granted } = await requestRecordingPermissionsAsync();
       if (!granted) return voiceProblem('Allow microphone access to speak.');
       await setAudioModeAsync({ playsInSilentMode: true, allowsRecording: true });
       await recorder.prepareToRecordAsync();
       recorder.record();
-      level.current = { floor: 0, heard: false, lastLoud: Date.now(), startedAt: Date.now(), stopping: false, loggedAt: 0 };
+      Object.assign(level.current, { floor: 0, heard: false, lastLoud: Date.now(), startedAt: Date.now(), stopping: false, loggedAt: 0 });
     } catch (e: any) {
       voiceProblem(`Could not start the microphone. ${e?.message ?? ''}`);
     }
   }
 
   async function stop() {
-    if (level.current.stopping) return;
+    if (level.current.stopping || level.current.gone) return;
     level.current.stopping = true;
     setBusy(true);
     try {
@@ -126,19 +149,20 @@ export function useSpeaker() {
   const player = useAudioPlayer(null);
   const status = useAudioPlayerStatus(player);
   const queue = useRef<string[]>([]);
+  const [owner] = useState(() => Math.random());
   const [speaking, setSpeaking] = useState(false);
   const [loading, setLoading] = useState(false);
 
   function stop() {
     queue.current = [];
-    player.pause();
+    safely(() => player.pause());
     setSpeaking(false);
     setLoading(false);
   }
 
   async function speak(text: string) {
-    stopActiveSpeaker?.();
-    stopActiveSpeaker = stop;
+    stopActiveSpeaker();
+    activeSpeaker = { owner, stop };
     const voice = ttsSupported ? lang : 'en-IN';
     const urls = speechChunks(text).map((c) => ttsUrl(c, voice));
     if (!urls.length) return;
@@ -149,7 +173,7 @@ export function useSpeaker() {
     try {
       await setAudioModeAsync({ playsInSilentMode: true, allowsRecording: false });
       player.replace({ uri: urls[0] });
-      player.play();
+      safely(() => player.play());
     } catch (e: any) {
       stop();
       voiceProblem(`Could not play this. ${e?.message ?? ''}`);
@@ -163,8 +187,8 @@ export function useSpeaker() {
       if (!status.didJustFinish || !speaking) return;
       const next = queue.current.shift();
       if (next) {
-        player.replace({ uri: next });
-        player.play();
+        safely(() => player.replace({ uri: next }));
+        safely(() => player.play());
       } else {
         setSpeaking(false);
       }
@@ -173,10 +197,12 @@ export function useSpeaker() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [status.didJustFinish, status.playing]);
 
-  useEffect(() => () => {
-    if (stopActiveSpeaker === stop) stopActiveSpeaker = null;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  useEffect(
+    () => () => {
+      if (activeSpeaker?.owner === owner) activeSpeaker = null; // this screen closed: forget its player
+    },
+    [owner],
+  );
 
   return { speak, stop, speaking, loading, ttsSupported };
 }

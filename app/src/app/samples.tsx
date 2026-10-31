@@ -4,7 +4,7 @@ import { Text, View } from 'react-native';
 
 import { get, send } from '@/lib/api';
 import { C } from '@/lib/theme';
-import { Card, Header, IconBubble, Loading, Pill, Screen, useAsync } from '@/ui/kit';
+import { act, Card, Header, IconBubble, Loading, Pill, Screen, useAsync } from '@/ui/kit';
 
 const STORY: Record<string, { tone: 'warn' | 'ok' | 'bad'; tag: string; line: string }> = {
   sunita_gallbladder: { tone: 'warn', tag: 'Room above limit', line: 'Gallbladder surgery in a ₹7,500/day room on a ₹5,000/day policy limit. See the deduction coming, file, then fight a wrong cut.' },
@@ -25,7 +25,7 @@ export default function Samples() {
           <Card
             key={s.key}
             style={{ gap: 8 }}
-            onPress={async () => {
+            onPress={act(async () => {
               setBusy(s.key);
               try {
                 const p = await send(`/samples/${s.key}/policy`);
@@ -33,7 +33,7 @@ export default function Samples() {
               } finally {
                 setBusy(null);
               }
-            }}>
+            })}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
               <IconBubble name="person" />
               <View style={{ flex: 1 }}>

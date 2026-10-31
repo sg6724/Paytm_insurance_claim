@@ -6,7 +6,7 @@ import { Text, View } from 'react-native';
 
 import { get, rupees, send, upload } from '@/lib/api';
 import { C } from '@/lib/theme';
-import { Btn, Card, ErrorNote, Field, Header, Loading, Row, Screen, Sheet } from '@/ui/kit';
+import { act, Btn, Card, ErrorNote, Field, Header, Loading, Row, Screen, Sheet } from '@/ui/kit';
 
 export default function AddPolicy() {
   const [busy, setBusy] = useState<string | null>(null);
@@ -58,7 +58,7 @@ export default function AddPolicy() {
         ) : null}
         {error ? <ErrorNote error={error} /> : null}
         <Card>
-          <Row icon="phone-portrait-outline" title="Bought on Paytm" sub="Policies you bought through Paytm Insurance" onPress={async () => setPaytm(await get('/policies/paytm'))} />
+          <Row icon="phone-portrait-outline" title="Bought on Paytm" sub="Policies you bought through Paytm Insurance" onPress={act(async () => setPaytm(await get('/policies/paytm')))} />
           <Row icon="cloud-upload-outline" title="Upload policy PDF" sub="Policy schedule or wording. AI reads it in seconds" onPress={pickPdf} />
           <Row icon="camera-outline" title="Photograph the schedule" sub="Use your camera" onPress={snap} />
           <Row icon="search-outline" title="Fetch with policy number" sub="We look it up with your insurer" onPress={() => setFetchOpen(true)} />

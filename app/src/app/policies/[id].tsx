@@ -6,7 +6,7 @@ import { Pressable, Text, View } from 'react-native';
 import { get, rupees, send } from '@/lib/api';
 import { useApp } from '@/lib/app-context';
 import { C } from '@/lib/theme';
-import { Btn, Card, ErrorNote, Field, Header, IconBubble, Loading, Pill, Row, Screen, Section, Sheet, useAsync } from '@/ui/kit';
+import { act, Btn, Card, ErrorNote, Field, Header, IconBubble, Loading, Pill, Row, Screen, Section, Sheet, useAsync } from '@/ui/kit';
 import { Tip } from '@/ui/tip';
 import { ListenButton } from '@/ui/voice';
 
@@ -131,8 +131,8 @@ export default function PolicyDetail() {
               {sampleMember === m.id ? <Pill text="Sample" /> : null}
             </View>
             <View style={{ flexDirection: 'row', gap: 8 }}>
-              <Btn title={t('reimbursement')} style={{ flex: 1, height: 44 }} loading={busy} onPress={() => startClaim('reimbursement', m.id)} />
-              <Btn title={t('cashless')} kind="secondary" style={{ flex: 1, height: 44 }} onPress={() => startClaim('cashless', m.id)} />
+              <Btn title={t('reimbursement')} style={{ flex: 1, height: 44 }} loading={busy} onPress={act(() => startClaim('reimbursement', m.id))} />
+              <Btn title={t('cashless')} kind="secondary" style={{ flex: 1, height: 44 }} onPress={act(() => startClaim('cashless', m.id))} />
             </View>
           </Card>
         ))}
@@ -154,12 +154,12 @@ function ReviewSheet({ visible, onClose, policy, onSaved }: { visible: boolean; 
       ))}
       <Btn
         title="Looks right"
-        onPress={async () => {
+        onPress={act(async () => {
           const updates: Record<string, any> = {};
           for (const f of policy.needs_review ?? []) updates[f] = vals[f] !== undefined ? (['sum_insured', 'deductible', 'submission_days'].includes(f) ? Number(vals[f]) : vals[f]) : policy[f];
           onSaved(await send(`/policies/${policy.id}`, { updates }, 'PATCH'));
           onClose();
-        }}
+        })}
       />
     </Sheet>
   );

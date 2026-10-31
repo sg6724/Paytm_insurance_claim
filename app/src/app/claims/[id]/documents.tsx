@@ -8,7 +8,7 @@ import { Pressable, Text, View } from 'react-native';
 import { get, send, upload } from '@/lib/api';
 import { useApp } from '@/lib/app-context';
 import { C } from '@/lib/theme';
-import { Btn, Card, ErrorNote, Header, IconBubble, Loading, Pill, Screen, Section, Sheet, useAsync } from '@/ui/kit';
+import { act, Btn, Card, ErrorNote, Header, IconBubble, Loading, Pill, Screen, Section, Sheet, useAsync } from '@/ui/kit';
 import { Tip } from '@/ui/tip';
 
 export default function Documents() {
@@ -82,7 +82,7 @@ export default function Documents() {
       <Screen
         footer={
           <>
-            <Btn title={docs.length ? t('continue') : 'Fill the form without documents'} onPress={() => (docs.length ? setAsk(true) : chooseMode('manual'))} />
+            <Btn title={docs.length ? t('continue') : 'Fill the form without documents'} onPress={act(() => (docs.length ? setAsk(true) : chooseMode('manual')))} />
           </>
         }>
         <Tip id="documents" text="Add the papers you have, as photos or files. We read each one, then you choose whether we fill the claim form for you." />
@@ -107,7 +107,7 @@ export default function Documents() {
             <Text style={{ fontWeight: '600' }}>From ABHA</Text>
           </Card>
         </View>
-        {sample && docs.length === 0 ? <Btn title="Use sample documents" kind="secondary" icon="albums-outline" onPress={useSamples} /> : null}
+        {sample && docs.length === 0 ? <Btn title="Use sample documents" kind="secondary" icon="albums-outline" onPress={act(useSamples)} /> : null}
         {busy ? <Loading label={busy} /> : null}
         {error ? <ErrorNote error={error} /> : null}
 
@@ -139,7 +139,7 @@ export default function Documents() {
                 ) : null}
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
                   <Text style={{ color: C.faint, fontSize: 12 }}>Confidence {Math.round((d.confidence || 0) * 100)}%</Text>
-                  <Pressable onPress={async () => { await send(`/documents/${d.id}`, undefined, 'DELETE'); claim.reload(); }}>
+                  <Pressable onPress={act(async () => { await send(`/documents/${d.id}`, undefined, 'DELETE'); claim.reload(); })}>
                     <Text style={{ color: C.red, fontSize: 12 }}>Remove</Text>
                   </Pressable>
                 </View>
@@ -155,8 +155,8 @@ export default function Documents() {
           <Text style={{ fontSize: 20, fontWeight: '800', textAlign: 'center', color: C.text }}>{t('fillQuestion')}</Text>
           <Text style={{ color: C.sub, textAlign: 'center' }}>{t('fillQuestionSub')}</Text>
         </View>
-        <Btn title={t('fillForMe')} icon="sparkles" onPress={() => chooseMode('ai')} />
-        <Btn title={t('fillMyself')} kind="ghost" icon="create-outline" onPress={() => chooseMode('manual')} />
+        <Btn title={t('fillForMe')} icon="sparkles" onPress={act(() => chooseMode('ai'))} />
+        <Btn title={t('fillMyself')} kind="ghost" icon="create-outline" onPress={act(() => chooseMode('manual'))} />
         <Text style={{ color: C.faint, fontSize: 11, textAlign: 'center' }}>Your choice is recorded in Privacy & AI activity.</Text>
       </Sheet>
     </View>

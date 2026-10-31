@@ -5,7 +5,7 @@ import { Pressable, Switch, Text, View } from 'react-native';
 
 import { fmtTime, get, send } from '@/lib/api';
 import { C } from '@/lib/theme';
-import { Btn, Card, Header, Loading, Screen, Section, Sheet, useAsync } from '@/ui/kit';
+import { act, Btn, Card, Header, Loading, Screen, Section, Sheet, useAsync } from '@/ui/kit';
 
 const ACTOR = { ai: { icon: 'sparkles', color: C.navy, label: 'AI' }, rules: { icon: 'calculator', color: C.green, label: 'Rules' }, you: { icon: 'person', color: C.sub, label: 'You' } } as const;
 
@@ -30,7 +30,7 @@ export default function Trust() {
                 <Switch
                   value={c.granted}
                   trackColor={{ true: C.sky }}
-                  onValueChange={async (v) => consents.setData(await send('/consents', { purpose: c.purpose, granted: v }))}
+                  onValueChange={act(async (v: boolean) => consents.setData(await send('/consents', { purpose: c.purpose, granted: v })))}
                 />
               </View>
             ))}
@@ -63,11 +63,11 @@ export default function Trust() {
         <Btn
           title="Delete my data"
           kind="danger"
-          onPress={async () => {
+          onPress={act(async () => {
             await send('/me/data', undefined, 'DELETE');
             setConfirm(false);
             router.replace('/insurance');
-          }}
+          })}
         />
         <Pressable onPress={() => setConfirm(false)}>
           <Text style={{ textAlign: 'center', color: C.navy, fontWeight: '600', padding: 8 }}>Keep my data</Text>

@@ -3,6 +3,7 @@ import { router } from 'expo-router';
 import { useEffect, useState, type ReactNode } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   Modal,
   Pressable,
   ScrollView,
@@ -208,6 +209,18 @@ export function Section({ title, action, onAction, children }: { title: string; 
       {children}
     </View>
   );
+}
+
+/** Wrap a button handler: if it fails (network, server), show a friendly message instead of crashing. */
+export function act<A extends any[]>(fn: (...args: A) => unknown) {
+  return (...args: A) => {
+    Promise.resolve()
+      .then(() => fn(...args))
+      .catch((e: any) => {
+        console.log('[action failed]', e?.message);
+        Alert.alert('Something went wrong', e?.message ?? 'Please try again.');
+      });
+  };
 }
 
 export function useAsync<T>(fn: () => Promise<T>, deps: any[] = []) {

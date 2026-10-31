@@ -6,7 +6,7 @@ import { Pressable, Switch, Text, View } from 'react-native';
 import { get, send } from '@/lib/api';
 import { useApp } from '@/lib/app-context';
 import { C } from '@/lib/theme';
-import { Btn, Card, Field, Header, Loading, Pill, Screen, Section } from '@/ui/kit';
+import { act, Btn, Card, Field, Header, Loading, Pill, Screen, Section } from '@/ui/kit';
 import { Tip } from '@/ui/tip';
 
 type Correction = { field: string; severity: 'error' | 'warning' | 'info' | 'required'; message: string; suggestion?: any };
@@ -61,6 +61,8 @@ export default function ClaimForm() {
       try {
         const r = await send(`/claims/${id}/validate`, { form: pending });
         setCorr(r.corrections);
+      } catch {
+        // offline for a moment: keep the last corrections, the next edit checks again
       } finally {
         setChecking(false);
       }
@@ -124,10 +126,10 @@ export default function ClaimForm() {
             <Btn
               title={t('checkPayout')}
               icon="calculator-outline"
-              onPress={async () => {
+              onPress={act(async () => {
                 await send(`/claims/${id}/validate`, { form });
                 router.push(`/claims/${id}/preflight`);
-              }}
+              })}
             />
           </>
         }>
@@ -138,7 +140,7 @@ export default function ClaimForm() {
             <Text style={{ fontWeight: '700' }}>{claim.fill_mode === 'ai' ? 'Filled from your documents' : 'You are filling this form'}</Text>
             <Text style={{ color: C.sub, fontSize: 12 }}>{claim.fill_mode === 'ai' ? 'Check each field. Tagged fields came from a document.' : 'We check each field as you type and suggest fixes.'}</Text>
           </View>
-          <Pressable onPress={() => switchMode(claim.fill_mode === 'ai' ? 'manual' : 'ai')}>
+          <Pressable onPress={act(() => switchMode(claim.fill_mode === 'ai' ? 'manual' : 'ai'))}>
             <Text style={{ color: C.sky, fontWeight: '700', fontSize: 13 }}>{claim.fill_mode === 'ai' ? 'Fill myself' : 'Fill for me'}</Text>
           </Pressable>
         </Card>
@@ -194,7 +196,7 @@ export default function ClaimForm() {
                 <Switch value={!!form[k]} onValueChange={(v) => update(k, v)} trackColor={{ true: C.sky }} />
               </View>
               {k === 'intimation_done' && !form[k] ? (
-                <Btn title="Inform insurer now" kind="secondary" icon="call-outline" style={{ height: 42 }} onPress={async () => { await send(`/claims/${id}/intimate`); update('intimation_done', true); }} />
+                <Btn title="Inform insurer now" kind="secondary" icon="call-outline" style={{ height: 42 }} onPress={act(async () => { await send(`/claims/${id}/intimate`); update('intimation_done', true); })} />
               ) : null}
               {hintFor(k)}
             </View>

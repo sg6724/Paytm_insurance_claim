@@ -10,7 +10,7 @@ import { fmtTime, get, send, upload } from '@/lib/api';
 import { useApp } from '@/lib/app-context';
 import { C } from '@/lib/theme';
 import { AssistantAvatar } from '@/ui/assistant-avatar';
-import { Btn, Card, Row, Sheet } from '@/ui/kit';
+import { act, Btn, Card, Row, Sheet } from '@/ui/kit';
 import { ListenButton, MicButton, useSpeaker } from '@/ui/voice';
 
 type Msg = { role: 'user' | 'assistant'; content: string; image?: string | boolean; file?: string };
@@ -133,9 +133,9 @@ export default function Assistant() {
     ask(input);
   }
 
-  async function handoff() {
+  const handoff = act(async () => {
     setTicket(await send('/support/ticket', { topic: assistantCtx.screen, messages: msgs, claim_id: assistantCtx.claim_id }));
-  }
+  });
 
   const suggestions = SUGGEST[assistantCtx.screen] ?? ['How do I claim?', 'What is co-pay?', 'My claim was rejected. What now?'];
 
