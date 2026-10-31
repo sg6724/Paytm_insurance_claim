@@ -57,12 +57,16 @@ export async function upload<T = any>(path: string, file: Picked, extra: Record<
   const fd = new FormData();
   fd.append('file', { uri: file.uri, name: file.name, type: file.type } as any);
   Object.entries(extra).forEach(([k, v]) => fd.append(k, v));
+  const fetchImpl = String((globalThis as any).fetch).slice(0, 60).replace(/\s+/g, ' ');
+  console.log('[upload] start', path, { uri: file.uri, name: file.name, type: file.type, useRnFetch: process.env.EXPO_PUBLIC_USE_RN_FETCH, fetchImpl });
   let r: Response;
   try {
     r = await fetch(API_BASE + path, { method: 'POST', body: fd });
   } catch (e: any) {
-    throw new ApiError(0, { detail: `Can't reach the server at ${API_BASE}. ${e?.message ?? ''}`.trim() });
+    console.log('[upload] failed', path, e?.message, String(e?.stack ?? '').slice(0, 400));
+    throw new ApiError(0, { detail: `Upload failed: ${e?.message ?? 'unknown error'} (server ${API_BASE})` });
   }
+  console.log('[upload] done', path, r.status);
   return handle<T>(r);
 }
 

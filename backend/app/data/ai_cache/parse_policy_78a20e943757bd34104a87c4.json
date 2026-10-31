@@ -1,0 +1,215 @@
+{
+ "value": {
+  "insurer": "NAVDEEP GENERAL INSURANCE (DEMO)",
+  "plan": "Parivar Raksha Gold",
+  "policy_number": "NGI/PRG/2026/0071542",
+  "type": "family_floater",
+  "sum_insured": 750000,
+  "start_date": "2026-04-01",
+  "end_date": "2027-03-31",
+  "members": [
+   {
+    "name": "Meera Joshi",
+    "relation": "self",
+    "age": 45,
+    "gender": "F",
+    "ped": []
+   },
+   {
+    "name": "Anil Joshi",
+    "relation": "spouse",
+    "age": 49,
+    "gender": "M",
+    "ped": [
+     "Diabetes"
+    ]
+   }
+  ],
+  "room_rent": {
+   "type": "percent_si",
+   "value": 1,
+   "category": "general_ward"
+  },
+  "icu_rent": {
+   "type": "percent_si",
+   "value": 2
+  },
+  "copay": {
+   "percent": 20,
+   "age_threshold": 60
+  },
+  "deductible": 10000,
+  "consumables_cover": false,
+  "waiting": {
+   "initial_days": 30,
+   "ped_months": 48,
+   "specific_months": 24,
+   "specific_list": [
+    "Cataract",
+    "hernia",
+    "joint replacement",
+    "kidney stones"
+   ]
+  },
+  "sub_limits": [
+   {
+    "procedure": "Cataract",
+    "limit": 40000
+   },
+   {
+    "procedure": "Hernia repair",
+    "limit": 60000
+   }
+  ],
+  "exclusions": [
+   {
+    "keyword": "Cosmetic surgery",
+    "label": "cosmetic surgery excluded"
+   },
+   {
+    "keyword": "weight-loss surgery",
+    "label": "weight-loss surgery excluded"
+   },
+   {
+    "keyword": "treatment outside India",
+    "label": "treatment outside India excluded"
+   }
+  ],
+  "pre_hosp_days": 60,
+  "post_hosp_days": 90,
+  "intimation": {
+   "emergency_hours": 24,
+   "planned_hours": 48
+  },
+  "submission_days": 15,
+  "clauses": [
+   {
+    "id": "C1.1",
+    "topic": "sum_insured",
+    "title": "Sum Insured",
+    "page": 2,
+    "text": "The sum insured is Rs 7,50,000 per policy year, shared by all insured members on a floater basis."
+   },
+   {
+    "id": "C2.1",
+    "topic": "room_rent",
+    "title": "Room Rent",
+    "page": 2,
+    "text": "Room rent is payable up to 1% of the sum insured per day. Higher room expenses paid in same proportion."
+   },
+   {
+    "id": "C2.2",
+    "topic": "room_rent",
+    "title": "ICU Charges",
+    "page": 2,
+    "text": "ICU charges are payable up to 2% of the sum insured per day."
+   },
+   {
+    "id": "C3.1",
+    "topic": "copay",
+    "title": "Co-payment",
+    "page": 2,
+    "text": "A co-payment of 20% applies to every admissible claim for an insured member aged 60 years or above."
+   },
+   {
+    "id": "C3.2",
+    "topic": "copay",
+    "title": "Deductible",
+    "page": 2,
+    "text": "A deductible of Rs 10,000 applies to each claim."
+   },
+   {
+    "id": "C4.1",
+    "topic": "sub_limits",
+    "title": "Sub-Limits",
+    "page": 2,
+    "text": "Cataract payable up to Rs 40,000 per eye. Hernia repair payable up to Rs 60,000."
+   },
+   {
+    "id": "C5.1",
+    "topic": "waiting_initial",
+    "title": "Initial Waiting Period",
+    "page": 3,
+    "text": "Illness claims are not covered in the first 30 days from the policy start date. Accidents are covered from day one."
+   },
+   {
+    "id": "C5.2",
+    "topic": "waiting_ped",
+    "title": "Pre-existing Diseases",
+    "page": 3,
+    "text": "Pre-existing diseases are covered after 48 months of continuous cover."
+   },
+   {
+    "id": "C5.3",
+    "topic": "waiting_specific",
+    "title": "Specific Diseases",
+    "page": 3,
+    "text": "Cataract, hernia, joint replacement and kidney stones are covered after 24 months of continuous cover."
+   },
+   {
+    "id": "C6.1",
+    "topic": "exclusions",
+    "title": "Exclusions",
+    "page": 3,
+    "text": "Cosmetic surgery, weight-loss surgery and treatment outside India are excluded."
+   },
+   {
+    "id": "C6.2",
+    "topic": "exclusions",
+    "title": "Non-Payable Items",
+    "page": 3,
+    "text": "Items on the IRDAI list of non-medical expenses are not payable."
+   },
+   {
+    "id": "C7.1",
+    "topic": "claim_process",
+    "title": "Pre and Post Hospitalisation",
+    "page": 3,
+    "text": "Medical expenses are covered for 60 days before admission and 90 days after discharge."
+   },
+   {
+    "id": "C8.1",
+    "topic": "claim_process",
+    "title": "Claim Intimation",
+    "page": 3,
+    "text": "Inform the insurer within 24 hours of an emergency admission, and at least 48 hours before a planned admission."
+   },
+   {
+    "id": "C8.2",
+    "topic": "claim_process",
+    "title": "Claim Documents",
+    "page": 3,
+    "text": "Submit all claim documents within 15 days of discharge."
+   }
+  ],
+  "confidence": {
+   "insurer": 1.0,
+   "plan": 1.0,
+   "policy_number": 1.0,
+   "type": 1.0,
+   "sum_insured": 1.0,
+   "start_date": 1.0,
+   "end_date": 1.0,
+   "members": 0.9,
+   "room_rent": 1.0,
+   "icu_rent": 1.0,
+   "copay": 1.0,
+   "deductible": 1.0,
+   "consumables_cover": 1.0,
+   "waiting": 0.9,
+   "sub_limits": 0.9,
+   "exclusions": 0.9,
+   "pre_hosp_days": 1.0,
+   "post_hosp_days": 1.0,
+   "intimation": 1.0,
+   "submission_days": 1.0,
+   "clauses": 1.0
+  },
+  "needs_review": [
+   "room_rent category",
+   "icu_rent category",
+   "members ped for Meera Joshi",
+   "sum_insured value confirmation"
+  ]
+ }
+}

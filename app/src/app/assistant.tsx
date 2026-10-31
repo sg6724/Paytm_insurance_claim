@@ -13,7 +13,7 @@ import { AssistantAvatar } from '@/ui/assistant-avatar';
 import { Btn, Card, Row, Sheet } from '@/ui/kit';
 import { ListenButton, MicButton, useSpeaker } from '@/ui/voice';
 
-type Msg = { role: 'user' | 'assistant'; content: string; image?: string | boolean; file?: string };
+type Msg = { role: 'user' | 'assistant'; content: string; image?: string | boolean; file?: string; pending?: boolean };
 type AskOpts = { attachment?: string; image?: string; file?: string; spoken?: boolean };
 type Recap = { recap: string | null; next_step: string | null; last_at: string };
 
@@ -93,6 +93,8 @@ export default function Assistant() {
 
   async function share(kind: 'image' | 'pdf') {
     setPickOpen(false);
+    // Android drops the picker's result if it opens while the sheet is still animating closed.
+    await new Promise((r) => setTimeout(r, 450));
     let picked: { uri: string; name: string; type: string } | null = null;
     if (kind === 'image') {
       const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -105,14 +107,19 @@ export default function Assistant() {
       if (r.canceled) return;
       picked = { uri: r.assets[0].uri, name: r.assets[0].name, type: 'application/pdf' };
     }
+    console.log('[assistant] picked', kind, picked.name);
+    // Show the attachment straight away, so it is clear it was picked while it is being read.
+    const label = kind === 'pdf' ? `Reading ${picked.name}…` : 'Reading your screenshot…';
+    setMsgs((m) => [...m, { role: 'user', content: label, ...(kind === 'pdf' ? { file: picked!.name } : { image: picked!.uri }), pending: true }]);
     setBusy(true);
     try {
       const out = await upload('/assistant/attach', picked);
+      setMsgs((m) => m.filter((x) => !x.pending));
       setBusy(false);
       await ask(input, kind === 'pdf' ? { attachment: out.text, file: picked.name } : { attachment: out.text, image: picked.uri });
     } catch (e: any) {
       setBusy(false);
-      setMsgs((m) => [...m, { role: 'assistant', content: `I couldn't read that ${kind === 'pdf' ? 'PDF' : 'image'} (${e.message}).` }]);
+      setMsgs((m) => [...m.filter((x) => !x.pending), { role: 'assistant', content: `I couldn't read that ${kind === 'pdf' ? 'PDF' : 'image'} (${e.message}).` }]);
     }
   }
 
