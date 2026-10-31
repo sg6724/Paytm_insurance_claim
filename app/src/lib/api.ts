@@ -47,6 +47,7 @@ async function handle<T>(r: Response): Promise<T> {
   } catch {
     body = { detail: text };
   }
+  if (r.status === 413) throw new ApiError(413, { detail: 'This file is too large. Please use one under 4 MB.' }); // the host's limit, so it isn't JSON
   if (r.status === 401 && authToken) onSessionEnded?.(); // expired or signed out elsewhere; a wrong password has no token yet
   if (!r.ok) throw new ApiError(r.status, body);
   return body as T;

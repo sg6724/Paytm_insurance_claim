@@ -17,7 +17,9 @@
         "backgroundImage": "./assets/images/android-icon-background.png",
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "package": "com.claimezy.app",
+      "versionCode": 1
     },
     "web": {
       "output": "single",
@@ -34,7 +36,14 @@
         }
       ],
       "expo-audio",
-      "expo-secure-store"
+      "expo-secure-store",
+      [
+        "expo-image-picker",
+        {
+          "cameraPermission": "Claimezy uses the camera to photograph hospital bills and policy documents.",
+          "photosPermission": "Claimezy reads the bills and letters you choose to share."
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,

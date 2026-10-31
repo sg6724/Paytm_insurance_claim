@@ -16,3 +16,6 @@ app/.env.local
 
 .DS_Store
 backend/app/data/ai_cache/tts_*
+
+# Vercel
+.vercel/
