@@ -12,7 +12,7 @@ app/node_modules/
 app/.expo/
 app/dist/
 app/web-build/
-app/.env
+app/.env.local
 
 .DS_Store
 backend/app/data/ai_cache/tts_*

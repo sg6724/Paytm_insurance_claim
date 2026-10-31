@@ -1,5 +1,4 @@
 import Constants from 'expo-constants';
-import { File, UploadType } from 'expo-file-system';
 
 // The backend runs on the laptop. On the phone (Expo Go over the laptop hotspot) we reuse the
 // host that served the JS bundle, so no IP needs to be typed. EXPO_PUBLIC_API_URL overrides it.
@@ -52,29 +51,19 @@ export async function send<T = any>(path: string, body?: any, method = 'POST'): 
 
 export type Picked = { uri: string; name: string; type: string };
 
-// SDK 58 installs expo/fetch as the global fetch, and it rejects React Native's { uri, name, type } form parts
-// ("Unsupported FormDataPart implementation"). The native uploader streams the file from disk instead.
+// Uploads use React Native's own fetch (app/.env sets EXPO_PUBLIC_USE_RN_FETCH=1). Expo's fetch rejects
+// { uri, name, type } form parts, and expo-file-system's uploader can't read files the pickers hand back in Expo Go.
 export async function upload<T = any>(path: string, file: Picked, extra: Record<string, string> = {}): Promise<T> {
-  let res;
+  const fd = new FormData();
+  fd.append('file', { uri: file.uri, name: file.name, type: file.type } as any);
+  Object.entries(extra).forEach(([k, v]) => fd.append(k, v));
+  let r: Response;
   try {
-    res = await new File(file.uri).upload(API_BASE + path, {
-      uploadType: UploadType.MULTIPART,
-      fieldName: 'file',
-      mimeType: file.type,
-      parameters: extra,
-      httpMethod: 'POST',
-    });
+    r = await fetch(API_BASE + path, { method: 'POST', body: fd });
   } catch (e: any) {
     throw new ApiError(0, { detail: `Can't reach the server at ${API_BASE}. ${e?.message ?? ''}`.trim() });
   }
-  let body: any = null;
-  try {
-    body = res.body ? JSON.parse(res.body) : null;
-  } catch {
-    body = { detail: res.body };
-  }
-  if (res.status >= 400) throw new ApiError(res.status, body);
-  return body as T;
+  return handle<T>(r);
 }
 
 export const ttsUrl = (text: string, lang: string) =>
