@@ -8,6 +8,7 @@ from datetime import date
 
 from fastapi import Depends, FastAPI, File, Form, Header, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.concurrency import run_in_threadpool  # slow AI calls must not freeze the server for everyone else
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
@@ -281,7 +282,7 @@ async def upload_policy(file: UploadFile = File(...)):
     data = await file.read()
     mime = file.content_type or mimetypes.guess_type(file.filename or "")[0] or "application/pdf"
     try:
-        parsed = tools.parse_policy(data, mime)
+        parsed = await run_in_threadpool(tools.parse_policy, data, mime)
     except SarvamError as e:
         raise HTTPException(502, f"Couldn't read the policy: {e}")
     except Exception as e:
@@ -430,7 +431,7 @@ async def hospital_bill(policy_id: str = Form(...), file: UploadFile = File(...)
     data = await file.read()
     mime = file.content_type or "image/jpeg"
     try:
-        doc = tools.extract_document(data, mime, file.filename or "bill")
+        doc = await run_in_threadpool(tools.extract_document, data, mime, file.filename or "bill")
     except SarvamError as e:
         raise HTTPException(502, str(e))
     facts = {k: doc.get(k) for k in ("room_category", "room_rent_per_day", "diagnosis", "procedure", "admission_date") if doc.get(k)}
@@ -503,7 +504,7 @@ async def upload_document(cid: str, file: UploadFile = File(...)):
     path = config.UPLOAD_DIR / f"{did}{ext}"
     path.write_bytes(data)
     try:
-        fields = tools.extract_document(data, mime, file.filename or "document")
+        fields = await run_in_threadpool(tools.extract_document, data, mime, file.filename or "document")
         error = None
     except Exception as e:
         fields, error = {"doc_type": "other", "confidence": 0, "summary": "We couldn't read this file automatically."}, str(e)
@@ -922,7 +923,7 @@ async def assistant_attach(file: UploadFile = File(...)):
     is_pdf = data[:5] == b"%PDF-" or name.lower().endswith(".pdf") or file.content_type == "application/pdf"
     mime = "application/pdf" if is_pdf else (file.content_type if (file.content_type or "").startswith("image/") else "image/jpeg")
     try:
-        text = tools.describe_attachment(data, mime)
+        text = await run_in_threadpool(tools.describe_attachment, data, mime)
     except SarvamError as e:
         raise HTTPException(502, str(e))
     except Exception as e:
@@ -935,7 +936,7 @@ async def assistant_attach(file: UploadFile = File(...)):
 async def assistant_stt(file: UploadFile = File(...), lang: str = Form("auto")):
     data = await file.read()
     try:
-        out = sarvam.stt(data, file.filename or "audio.m4a", None if lang == "auto" else lang)
+        out = await run_in_threadpool(sarvam.stt, data, file.filename or "audio.m4a", None if lang == "auto" else lang)
     except SarvamError as e:
         raise HTTPException(502, str(e))
     return out
