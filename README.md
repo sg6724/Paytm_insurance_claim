@@ -10,7 +10,7 @@ See [PRD.md](PRD.md) for the full product spec.
 
 ## Try it
 
-**[Download the Android APK](https://expo.dev/artifacts/eas/oLEwPqtPLdmVMA5ijr-mArIEn3eYb8XfBlnAnLgNd6A.apk)**
+**[Download the Android APK](https://github.com/sg6724/Paytm_insurance_claim/releases/latest/download/Claimezy.apk)**
 
 Install it on an Android phone and allow installs from your browser if asked. It needs only internet, no laptop.
 
