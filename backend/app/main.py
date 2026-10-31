@@ -384,6 +384,12 @@ def get_claim(cid: str):
 
 @app.delete("/claims/{cid}")
 def delete_claim(cid: str):
+    c = store.get("claim", cid)
+    if c and c.get("settled_on") and c.get("decision"):
+        p = store.get("policy", c["policy_id"])
+        if p:  # give back the cover this claim used up
+            p["remaining_si"] = min(float(p["sum_insured"]), float(p.get("remaining_si", p["sum_insured"])) + float(c["decision"]["amount_approved"] or 0))
+            store.put("policy", p)
     store.delete("claim", cid)
     store.delete("thread", memory.thread_id(cid, None))
     return {"ok": True}
@@ -720,8 +726,9 @@ def assistant_chat(body: AssistantIn):
     thread = memory.load(memory.thread_id(body.claim_id, body.policy_id))
     if thread["summary"]:
         ctx["earlier_conversation_summary"] = thread["summary"]
-    if thread["messages"]:
-        ctx["previous_session_ended"] = thread["messages"][-1]["at"]
+    back = memory.returning_since(thread)
+    if back:
+        ctx["previous_session_ended"] = back
     policies = store.find("policy")
     p = store.get("policy", body.policy_id) if body.policy_id else (policies[0] if policies else None)
     if body.claim_id:
@@ -749,7 +756,7 @@ def assistant_chat(body: AssistantIn):
         reply = tools.assistant(history, body.lang, ctx)
     except SarvamError as e:
         raise HTTPException(502, str(e))  # nothing is saved, so the user can simply ask again
-    memory.append(thread, "user", said, image=bool(body.attachment))
+    memory.append(thread, "user", said, image=bool(body.attachment), attachment=body.attachment)
     memory.append(thread, "assistant", reply)
     older = memory.pending_summary(thread)
     if older:
@@ -760,20 +767,42 @@ def assistant_chat(body: AssistantIn):
     return {"reply": reply}
 
 
+def _recap_fresh(t: dict, lang: str) -> bool:
+    return t.get("recap_n") == len(t["messages"]) and t.get("recap_lang") == lang
+
+
 @app.get("/assistant/thread")
 def assistant_thread(claim_id: str | None = None, policy_id: str | None = None, lang: str = "en-IN"):
-    """The saved conversation, with a recap for a returning user and the next step from the claim's state."""
+    """The saved conversation and the next step from the claim's state. Fast: no AI call here.
+
+    The recap is returned only if one is already cached; otherwise recap_pending tells the app to fetch it
+    from /assistant/thread/recap, so the chat shows at once and the recap fills in after.
+    """
     t = memory.load(memory.thread_id(claim_id, policy_id))
     c = store.get("claim", claim_id) if claim_id else None
     p = store.get("policy", c["policy_id"]) if c else None
     next_step_en = C.next_step(c, p) if c and p else None
     next_step = _localise(next_step_en, lang) if next_step_en else None
     if not t["messages"]:
-        return {"id": t["id"], "messages": [], "recap": None, "next_step": next_step, "last_at": None}
-    if t.get("recap_n") != len(t["messages"]) or t.get("recap_lang") != lang:
+        return {"id": t["id"], "messages": [], "recap": None, "recap_pending": False, "next_step": next_step, "last_at": None}
+    fresh = _recap_fresh(t, lang)
+    return {"id": t["id"], "messages": t["messages"], "recap": t["recap"] if fresh else None, "recap_pending": not fresh,
+            "next_step": next_step, "last_at": t["messages"][-1]["at"]}
+
+
+@app.get("/assistant/thread/recap")
+def assistant_recap(claim_id: str | None = None, policy_id: str | None = None, lang: str = "en-IN"):
+    """AI-written "where we left off", cached until the conversation moves or the language changes."""
+    t = memory.load(memory.thread_id(claim_id, policy_id))
+    if not t["messages"]:
+        return {"recap": None}
+    if not _recap_fresh(t, lang):
+        c = store.get("claim", claim_id) if claim_id else None
+        p = store.get("policy", c["policy_id"]) if c else None
+        next_step_en = C.next_step(c, p) if c and p else None
         t.update(recap=tools.recap_conversation(t["messages"], t["summary"], lang, next_step_en), recap_n=len(t["messages"]), recap_lang=lang)
         memory.save(t)
-    return {"id": t["id"], "messages": t["messages"], "recap": t["recap"], "next_step": next_step, "last_at": t["messages"][-1]["at"]}
+    return {"recap": t["recap"]}
 
 
 @app.delete("/assistant/thread")

@@ -33,9 +33,21 @@ def test_conversation_survives_closing_the_assistant(api, model):
     assert t["messages"][0]["at"] and t["last_at"]
 
 
+def _age_thread(cid, hours):
+    """Pretend the last messages were sent some hours ago."""
+    from datetime import datetime, timedelta
+
+    from app import store
+    t = memory.load(memory.thread_id(cid, None))
+    for m in t["messages"]:
+        m["at"] = (datetime.fromisoformat(m["at"]) - timedelta(hours=hours)).isoformat(timespec="seconds")
+    store.put("thread", t)
+
+
 def test_next_visit_gives_the_model_the_earlier_conversation(api, model):
     cid = start_claim(api)
     say(api, "first question", claim_id=cid)
+    _age_thread(cid, 2)
     say(api, "Let us continue", claim_id=cid)
     sent = model[-1]
     assert [m["content"] for m in sent["messages"]] == ["first question", "answer 1", "Let us continue"]
@@ -43,12 +55,22 @@ def test_next_visit_gives_the_model_the_earlier_conversation(api, model):
     assert "at" not in sent["messages"][0]
 
 
+def test_back_to_back_messages_are_not_a_new_visit(api, model):
+    cid = start_claim(api)
+    say(api, "first question", claim_id=cid)
+    say(api, "and another", claim_id=cid)
+    assert "previous_session_ended" not in model[-1]["ctx"]
+
+
 def test_recap_says_what_happened_and_rules_say_what_is_next(api, model):
     cid = start_claim(api)
     say(api, "Is the room rent deduction fair?", claim_id=cid)
     t = api.get(f"/assistant/thread?claim_id={cid}").json()
-    assert "Is the room rent deduction fair?" in t["recap"]
+    assert t["recap"] is None and t["recap_pending"] is True  # the thread itself never waits on the AI
     assert t["next_step"] == "Finish your documents and the claim form, then check your payout."
+    assert "Is the room rent deduction fair?" in api.get(f"/assistant/thread/recap?claim_id={cid}").json()["recap"]
+    t = api.get(f"/assistant/thread?claim_id={cid}").json()
+    assert t["recap"] and t["recap_pending"] is False  # cached now
 
 
 def test_next_step_follows_the_claim(api, model):
@@ -101,6 +123,13 @@ def test_attachment_goes_to_the_model_but_is_not_stored_as_the_message(api, mode
     assert m["content"] == "What is this?" and m["image"] is True
 
 
+def test_follow_up_questions_still_see_the_screenshot(api, model):
+    cid = start_claim(api)
+    api.post("/assistant/chat", json={"message": "What is this?", "attachment": "SMS: submit pharmacy bills by 7 Nov", "claim_id": cid})
+    say(api, "By when do I need to do it?", claim_id=cid)
+    assert "submit pharmacy bills by 7 Nov" in model[-1]["messages"][0]["content"]
+
+
 def test_long_threads_are_summarised_not_dropped(api, model):
     cid = start_claim(api)
     for i in range(14):
@@ -117,9 +146,11 @@ def test_recap_is_cached_until_the_conversation_moves(api, model, monkeypatch):
     n = []
     monkeypatch.setattr(tools, "recap_conversation", lambda m, s, lang, next_step=None: n.append(1) or "recap")
     api.get(f"/assistant/thread?claim_id={cid}")
-    api.get(f"/assistant/thread?claim_id={cid}")
+    assert len(n) == 0  # opening the chat never calls the AI
+    api.get(f"/assistant/thread/recap?claim_id={cid}")
+    api.get(f"/assistant/thread/recap?claim_id={cid}")
     assert len(n) == 1
-    api.get(f"/assistant/thread?claim_id={cid}&lang=hi-IN")
+    api.get(f"/assistant/thread/recap?claim_id={cid}&lang=hi-IN")
     assert len(n) == 2  # a new language needs a new recap
 
 

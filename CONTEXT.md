@@ -21,7 +21,7 @@ Last updated: 31 Oct 2026, finals day.
 | Area | State |
 |---|---|
 | PRD | Done (`PRD.md`) |
-| Rule engine | Done. 110 backend tests pass: engine, API journeys, mock partners, assistant memory, stay-facts reader (`backend/tests/`) |
+| Rule engine | Done. 121 backend tests pass: engine, API journeys, mock partners, insurer paths, assistant memory, stay-facts reader (`backend/tests/`) |
 | Backend API + mocks + AI | Done, verified live with Sarvam |
 | Expo app (about 20 screens) | Done, `tsc` and `expo lint` clean, Android bundle builds |
 | Sample documents | Done (`demo-docs/`, served at `/demo-docs/`) |
@@ -81,12 +81,13 @@ claim-to-cash/
 │   │   ├── ai/sarvam.py      chat (v1, json mode + retry), vision (v2, gemma4), stt, tts, translate; disk cache
 │   │   ├── ai/stay_facts.py  reads room, rent, procedure and patient from what the user says (Hindi, Marathi, English); fills gaps the LLM leaves
 │   │   ├── formpdf.py        claim form as a PDF
+│   │   ├── assistant_memory.py  one saved chat thread per claim/policy; last 16 messages + rolling summary; return-visit detection
 │   │   ├── ai/tools.py       parse_policy, extract_document, explainer_template/localise,
 │   │   │                     hospital_chat, summarise_check, explain_decision, draft_appeal,
-│   │   │                     assistant, describe_attachment
+│   │   │                     assistant, summarise_conversation, recap_conversation, describe_attachment
 │   │   └── data/             samples.py (2 policies, 3 claims), ombudsman.py (PIN → office), ai_cache/
 │   ├── scripts/make_demo_docs.py   regenerates demo-docs/
-│   └── tests/test_engine.py
+│   └── tests/            test_engine, test_api, test_mocks, test_memory, test_stay_facts (conftest runs offline)
 └── app/                      Expo SDK 58, React Native 0.88, expo-router, TypeScript, React Compiler on
     └── src/
         ├── lib/api.ts        API_BASE auto-detect (Metro host:8787 or EXPO_PUBLIC_API_URL), get/send/upload, ttsUrl, rupees
@@ -95,6 +96,9 @@ claim-to-cash/
         ├── lib/theme.ts      Paytm colours (navy #002E6E, sky #00BAF2)
         ├── ui/kit.tsx        Header, Screen, Card, Row, Btn, Pill, Field, Sheet, Money, useAsync…
         ├── ui/voice.tsx      MicButton (expo-audio record → /assistant/stt), ListenButton (TTS URL)
+        ├── ui/tip.tsx        one-time hint per screen (seen ids saved on the profile)
+        ├── ui/assistant-avatar.tsx  assistant image used on the Ask button and chat
+        ├── lib/guide.ts      the 4-step journey text shared by onboarding and /guide
         └── app/              routes (see section 6)
 ```
 
@@ -135,10 +139,13 @@ The steps run in this order:
 
 For Sunita, the insurer behaviour is `over_deduct`. It also cuts pharmacy and diagnostics proportionately, which is wrong, so it approves **₹62,400**. `analyse_decision` then finds **₹6,000 wrongly deducted**, rates the appeal as **strong**, and the ladder unlocks step by step: insurer, then GRO, then Bima Bharosa, then the Ombudsman.
 
+After an appeal is sent, the next `advance` makes the mock insurer answer it from the rule engine: Sunita's ₹6,000 is reversed (₹62,400 becomes ₹68,400, topped up once if already settled) and the ladder closes; Rakesh's rejection stands and can still escalate.
+
 ### Bridge loan (mock lender)
 
 - **Offer:** 80% of the expected payout, 30 days, 16% APR, 1% fee plus GST, 3-day cooling-off. These are demo values.
-- **Repayment:** automatic when the claim is settled.
+- **Repayment:** automatic when the claim is settled. If the insurer pays less than is owed, the loan is part-repaid and the rest is due in EMIs.
+- **Consent:** `POST /bridge/accept` must carry `{"consent": true}`; the API refuses without it.
 
 ### The rest
 
@@ -149,15 +156,21 @@ For Sunita, the insurer behaviour is `over_deduct`. It also cuts pharmacy and di
 | Audit log | Every AI action, consent and submission goes through `store.audit()` and shows on the app's "Privacy & AI activity" screen. |
 | TTS | `GET /assistant/tts.wav?text=&lang=` returns a wav, so the app streams it straight into `expo-audio`. |
 | UI translation | `POST /i18n` translates the `EN` strings dictionary once per language, cached on disk. |
+| Hospital chat fallback | `ai/stay_facts.py` reads room, rent, illness and patient from the user's own words (English, Hindi, Marathi) and fills only what the LLM missed. The stay check works even if Sarvam is down. |
+| Human review | Documents read under 60% confidence, poor policy reads (6+ uncertain fields) and decisions the rules can't explain open a mock review ticket. |
+| Assistant memory | One thread per claim (or policy, or general). The model gets the last 16 messages plus a rolling summary. Screenshot text is saved with its message, so follow-ups still see it. `previous_session_ended` is sent only after a 30-minute gap. |
+| Assistant recap | `GET /assistant/thread` returns at once with no AI call; if the cached recap is stale it sets `recap_pending` and the app fetches `GET /assistant/thread/recap`. The "Next:" line comes from `claims.next_step()`, not the AI. |
+| Cover used | Settling a claim lowers the policy's `remaining_si`; deleting a settled claim gives it back. |
 | Disk cache | `backend/app/data/ai_cache/` stores responses by input hash. Most prompts include dates or IDs, so the cache rarely hits on new runs. The network is effectively required. |
 
 ## 6. App routes (`app/src/app/`)
 
 | Route | Purpose |
 |---|---|
-| `index` | Paytm-style home. The Health Insurance tile and the Claimezy card lead to `/insurance`. |
+| `index` | Paytm-style home. The Health Insurance tile leads to `/insurance`; the globe icon opens the language picker. |
 | `insurance` | Insurance landing. Redirects to `onboarding` until the profile has `onboarded=true`. |
-| `onboarding` | 3 slides plus DPDP consent |
+| `onboarding` | 5 slides: what it does, the 4 steps, what to keep ready, AI vs rules, consent. Ends with "Try a sample claim" or "Add my own policy" |
+| `guide` | How it works: the 4 steps with a button each. Opened by Help in the header |
 | `settings` | Language picker (23 languages) |
 | `trust` | Consent toggles, AI activity log, delete data |
 | `samples` | Guided sample claims (Sunita, Arjun, Rakesh) |
@@ -166,9 +179,9 @@ For Sunita, the insurer behaviour is `over_deduct`. It also cuts pharmacy and di
 | `policies/[id]` | "Your cover in plain words", clause sheet, start claim. `?sample=key` preselects a sample. |
 | `hospital/[policyId]` | Cashless or reimbursement; chat/voice, form or bill photo; result |
 | `claims/index` | Claims list |
-| `claims/[id]/documents` | Upload, checklist, sample documents, fill-mode consent popup |
+| `claims/[id]/documents` | Upload, ABHA fetch (mock), checklist, sample documents, fill-mode consent popup |
 | `claims/[id]/form` | AI or manual form with live corrections |
-| `claims/[id]/preflight` | Payout estimate and submit |
+| `claims/[id]/preflight` | Payout estimate, export form as PDF, submit |
 | `claims/[id]/index` | Tracker, tasks, decision card, bridge card, NHCX link, "Insurer: next step" demo control |
 | `claims/[id]/decision` | Explanation with voice, appeal strength, escalation ladder, draft editor |
 | `claims/[id]/bridge` | Key Facts Statement and accept |
@@ -240,12 +253,16 @@ On 31 Oct the laptop's Wi-Fi IP was `10.50.123.136`. If the phone switches to th
 - `POST /claims/{cid}/appeal/dismiss`
 - `GET /ombudsman?pincode=`
 - `GET /claims/{cid}/fhir`
+- `GET /claims/{cid}/form.pdf`
 - `GET /claims/{cid}/bridge`
-- `POST /claims/{cid}/bridge/accept`
+- `POST /claims/{cid}/bridge/accept` (body `{"consent": true}`)
 
 **Mock partners and assistant**
 - `POST /mock/upi/pay`
-- `POST /assistant/chat`
+- `POST /mock/abha/fetch/{cid}`
+- `POST /assistant/chat` (body: `message`, optional `attachment`; history comes from the saved thread)
+- `GET` and `DELETE /assistant/thread`
+- `GET /assistant/thread/recap`
 - `POST /assistant/attach`
 - `POST /assistant/stt`
 - `POST /assistant/tts`

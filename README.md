@@ -20,7 +20,7 @@ echo "SARVAM_API_KEY=<your key>" > .env
 ```
 
 Check: `curl localhost:8787/health` returns `{"ok":true,"sarvam":true,...}`.
-Tests: `.venv/bin/python -m pytest -q tests`.
+Tests: `.venv/bin/python -m pytest -q tests` (121 tests, offline, no Sarvam key needed).
 
 ### 2. App (phone, Expo Go)
 
@@ -55,7 +55,7 @@ This clears policies and claims so My Policies shows "No policies found" again. 
 6. Form shows AI-filled fields with their source, live checks (room rent warning, insurer not informed). Try typing a wrong IFSC to see a correction. **Check my payout** shows **₹68,400 of ₹1,10,000** with every deduction and its clause.
 7. **Submit** → tracker. Show the **bridge loan** card (Key Facts, cooling-off, lender decides).
 8. Tap **Insurer: next step** (demo control) twice → insurer query → reply → next step → **partly approved ₹62,400**.
-9. **Explain this decision** (in Hindi, with voice): the rule engine finds **₹6,000 wrongly deducted** on medicines and tests → **Draft letter for me** → Send. The escalation ladder unlocks GRO → Bima Bharosa → Ombudsman (office found by PIN code).
+9. **Explain this decision** (in Hindi, with voice): the rule engine finds **₹6,000 wrongly deducted** on medicines and tests → **Draft letter for me** → Send. The escalation ladder unlocks GRO → Bima Bharosa → Ombudsman (office found by PIN code). Then tap **Insurer: next step** once more: the insurer accepts the appeal and **₹6,000 is reversed** (₹62,400 becomes ₹68,400).
 10. **NHCX claim pack**: FHIR R4 ClaimBundle. **Privacy & AI activity** lists everything AI did.
 
 Other samples: **Arjun** (bought on Paytm, clean claim, full payout) and **Rakesh** (knee replacement inside the 24-month waiting period: rejected, honest appeal odds, medical EMI option after the appeal path).

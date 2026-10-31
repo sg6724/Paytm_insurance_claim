@@ -245,3 +245,18 @@ def test_nhcx_refuses_an_empty_claim(api):
     pol = api.post("/samples/sunita_gallbladder/policy").json()
     cid = api.post("/claims", json={"policy_id": pol["id"]}).json()["id"]
     assert api.get(f"/claims/{cid}/fhir").status_code == 409
+
+
+def test_deleting_a_settled_claim_gives_the_cover_back(api):
+    from tests.conftest import advance_to_decision, start_claim
+    cid = start_claim(api)
+    api.post(f"/claims/{cid}/fill-mode", json={"mode": "ai"})
+    api.post(f"/claims/{cid}/intimate")
+    api.post(f"/claims/{cid}/submit")
+    c = advance_to_decision(api, cid)
+    c = api.post(f"/claims/{cid}/advance").json()
+    assert c["status"] == "settled"
+    pid = c["policy_id"]
+    assert api.get(f"/policies/{pid}").json()["remaining_si"] < 500000
+    api.delete(f"/claims/{cid}")
+    assert api.get(f"/policies/{pid}").json()["remaining_si"] == 500000

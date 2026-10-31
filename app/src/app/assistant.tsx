@@ -13,7 +13,7 @@ import { Btn, Card } from '@/ui/kit';
 import { ListenButton, MicButton } from '@/ui/voice';
 
 type Msg = { role: 'user' | 'assistant'; content: string; image?: string | boolean };
-type Recap = { recap: string; next_step: string | null; last_at: string };
+type Recap = { recap: string | null; next_step: string | null; last_at: string };
 
 const SUGGEST: Record<string, string[]> = {
   claim_form: ['Which documents prove my admission date?', 'Why is my room rent a problem?'],
@@ -45,6 +45,11 @@ export default function Assistant() {
         if (!live || !t.messages.length) return;
         setMsgs(t.messages);
         setRecap({ recap: t.recap, next_step: t.next_step, last_at: t.last_at });
+        if (!t.recap_pending) return;
+        // The chat shows at once; the AI-written recap fills in when ready (unless the user has moved on).
+        get<any>(`/assistant/thread/recap?lang=${lang}&${scope}`)
+          .then((r) => live && setRecap((cur) => (cur ? { ...cur, recap: r.recap } : cur)))
+          .catch(() => {});
       })
       .catch(() => {});
     return () => {
@@ -153,7 +158,11 @@ export default function Assistant() {
           <Card style={{ gap: 8, backgroundColor: C.paleBlue, borderColor: '#CFE6F7' }}>
             <Text style={{ fontWeight: '800', color: C.navy }}>{t('whereWeLeftOff')}</Text>
             <Text style={{ color: C.faint, fontSize: 11 }}>{fmtTime(recap.last_at)}</Text>
-            <Text style={{ color: C.text, lineHeight: 20 }}>{recap.recap.replace(/\*\*/g, '')}</Text>
+            {recap.recap ? (
+              <Text style={{ color: C.text, lineHeight: 20 }}>{recap.recap.replace(/\*\*/g, '')}</Text>
+            ) : (
+              <Text style={{ color: C.sub, fontStyle: 'italic' }}>{t('catchingUp')}</Text>
+            )}
             {recap.next_step ? <Text style={{ color: C.text, fontWeight: '700' }}>{t('nextLabel')}: {recap.next_step}</Text> : null}
             <View style={{ flexDirection: 'row', gap: 8 }}>
               <Btn title={t('continueChat')} style={{ flex: 1, height: 40 }} onPress={() => ask('Let us continue from where we left off.')} />

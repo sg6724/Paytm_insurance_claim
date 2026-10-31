@@ -10,6 +10,7 @@ export const EN = {
   nextLabel: 'Next',
   continueChat: 'Continue',
   startFresh: 'Start fresh',
+  catchingUp: 'Catching up on your last conversation…',
   waitingForReply: 'Waiting for a reply. Tap Insurer: next step on the claim screen.',
   myPolicies: 'My Policies',
   noPolicies: 'No policies found',
