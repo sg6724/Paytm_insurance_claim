@@ -15,3 +15,4 @@ app/web-build/
 app/.env
 
 .DS_Store
+backend/app/data/ai_cache/tts_*

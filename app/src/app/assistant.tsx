@@ -10,7 +10,7 @@ import { useApp } from '@/lib/app-context';
 import { C } from '@/lib/theme';
 import { AssistantAvatar } from '@/ui/assistant-avatar';
 import { Btn, Card } from '@/ui/kit';
-import { ListenButton, MicButton } from '@/ui/voice';
+import { ListenButton, MicButton, useSpeaker } from '@/ui/voice';
 
 type Msg = { role: 'user' | 'assistant'; content: string; image?: string | boolean };
 type Recap = { recap: string | null; next_step: string | null; last_at: string };
@@ -33,6 +33,7 @@ export default function Assistant() {
   const [ticket, setTicket] = useState<any>(null);
   const [recap, setRecap] = useState<Recap | null>(null);
   const scroll = useRef<any>(null);
+  const speaker = useSpeaker();
   const langName = langs.find((l) => l.code === lang)?.native ?? 'English';
 
   const scope = [assistantCtx.claim_id && `claim_id=${assistantCtx.claim_id}`, assistantCtx.policy_id && `policy_id=${assistantCtx.policy_id}`].filter(Boolean).join('&');
@@ -68,7 +69,7 @@ export default function Assistant() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [human]);
 
-  async function ask(text: string, attachmentText?: string, image?: string) {
+  async function ask(text: string, attachmentText?: string, image?: string, spoken = false) {
     if (!text.trim() && !attachmentText) return;
     const shown: Msg = { role: 'user', content: text || 'Please look at this.', image };
     setRecap(null);
@@ -78,6 +79,7 @@ export default function Assistant() {
     try {
       const out = await send('/assistant/chat', { message: shown.content, attachment: attachmentText, lang, ...assistantCtx });
       setMsgs((m) => [...m, { role: 'assistant', content: out.reply }]);
+      if (spoken && out.reply) speaker.speak(out.reply); // they talked, so answer out loud
     } catch (e: any) {
       setMsgs((m) => [...m, { role: 'assistant', content: `Sorry, I couldn't answer that right now (${e.message}). You can talk to a human.` }]);
     } finally {
@@ -185,7 +187,7 @@ export default function Assistant() {
           </Pressable>
           <TextInput value={input} onChangeText={setInput} placeholder={t('askPlaceholder')} placeholderTextColor={C.faint} onSubmitEditing={() => ask(input)} returnKeyType="send"
             style={{ flex: 1, borderWidth: 1.5, borderColor: C.line, borderRadius: 24, paddingHorizontal: 14, paddingVertical: 10, fontSize: 14, color: C.text }} />
-          <MicButton onText={(tx) => ask(tx)} size={44} />
+          <MicButton onText={(tx) => ask(tx, undefined, undefined, true)} size={44} />
           <Pressable onPress={() => ask(input)} style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: C.navy, alignItems: 'center', justifyContent: 'center' }}>
             <Ionicons name="send" size={18} color="#fff" />
           </Pressable>

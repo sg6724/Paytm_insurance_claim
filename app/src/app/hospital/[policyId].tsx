@@ -9,7 +9,7 @@ import { useApp } from '@/lib/app-context';
 import { C } from '@/lib/theme';
 import { Btn, Card, ErrorNote, Field, Header, Loading, Money, Pill, Section, useAsync } from '@/ui/kit';
 import { Tip } from '@/ui/tip';
-import { ListenButton, MicButton, VoiceHint } from '@/ui/voice';
+import { ListenButton, MicButton, VoiceHint, useSpeaker } from '@/ui/voice';
 
 type Msg = { role: 'user' | 'assistant'; content: string };
 const ROOMS = [['general_ward', 'General ward'], ['twin_sharing', 'Twin sharing'], ['single_private', 'Single private'], ['deluxe', 'Deluxe'], ['icu', 'ICU']];
@@ -32,6 +32,7 @@ export default function HospitalCheck() {
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<any>(null);
   const scroll = useRef<any>(null);
+  const speaker = useSpeaker();
 
   useFocusEffect(useCallback(() => setAssistantCtx({ screen: 'hospital_check', policy_id: policyId }), [policyId, setAssistantCtx]));
 
@@ -40,7 +41,7 @@ export default function HospitalCheck() {
     ? `I'm here to help while you're in hospital. Who is admitted, what room are you in and how much is it per day? What is the treatment? You can type or tap the mic and speak in your language. No bill needed.`
     : '';
 
-  async function sendChat(text: string) {
+  async function sendChat(text: string, spoken = false) {
     if (!text.trim()) return;
     const next: Msg[] = [...msgs, { role: 'user', content: text }];
     setMsgs(next);
@@ -50,6 +51,7 @@ export default function HospitalCheck() {
     try {
       const out = await send('/hospital/chat', { policy_id: policyId, messages: next, facts: { ...facts, claim_type: claimType }, lang });
       setMsgs([...next, { role: 'assistant', content: out.reply }]);
+      if (spoken && out.reply) speaker.speak(out.reply); // they talked, so answer out loud
       setFacts(out.facts);
       if (out.ready && out.check) setResult({ ...out.check, summary: null });
     } catch (e: any) {
@@ -136,7 +138,7 @@ export default function HospitalCheck() {
             <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}>
               <TextInput value={input} onChangeText={setInput} placeholder="e.g. My mother, single room ₹7,500 a day, gallbladder surgery" placeholderTextColor={C.faint}
                 style={{ flex: 1, borderWidth: 1.5, borderColor: C.line, borderRadius: 24, paddingHorizontal: 14, paddingVertical: 10, fontSize: 14, color: C.text }} onSubmitEditing={() => sendChat(input)} returnKeyType="send" />
-              <MicButton onText={(tx) => sendChat(tx)} size={44} />
+              <MicButton onText={(tx) => sendChat(tx, true)} size={44} />
               <Pressable onPress={() => sendChat(input)} style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: C.navy, alignItems: 'center', justifyContent: 'center' }}>
                 <Ionicons name="send" size={18} color="#fff" />
               </Pressable>
