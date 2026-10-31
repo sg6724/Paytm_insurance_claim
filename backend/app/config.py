@@ -15,8 +15,26 @@ SARVAM_BASE = os.getenv("SARVAM_BASE", "https://api.sarvam.ai")
 SARVAM_CHAT_MODEL = os.getenv("SARVAM_CHAT_MODEL", "sarvam-105b")
 SARVAM_VISION_MODEL = os.getenv("SARVAM_VISION_MODEL", "gemma4")  # image-capable model on /v2/chat/completions
 SARVAM_STT_MODEL = os.getenv("SARVAM_STT_MODEL", "saaras:v3")
-SARVAM_TTS_MODEL = os.getenv("SARVAM_TTS_MODEL", "bulbul:v3")
-SARVAM_TTS_SPEAKER = os.getenv("SARVAM_TTS_SPEAKER", "priya")
+SARVAM_TTS_MODEL = os.getenv("SARVAM_TTS_MODEL", "bulbul:v4-flash")
+SARVAM_TTS_FALLBACK_MODEL = "bulbul:v3"  # for languages v4-flash has no persona in yet
+SARVAM_TTS_FALLBACK_SPEAKER = "priya"
+SARVAM_TTS_PACE = float(os.getenv("SARVAM_TTS_PACE", "1.0"))  # Sarvam's recommended start for conversational agents
+# One warm, customer-care persona per language (v4 IDs are name_language_style). Picked by round-tripping
+# sample claim lines through Saaras STT (3 runs each). Simran in English and in Hinglish (enhi) keeps one voice; elsewhere a
+# native persona beats a Hindi one speaking the language. Set SARVAM_TTS_SPEAKER to use one voice everywhere.
+SARVAM_TTS_SPEAKER = os.getenv("SARVAM_TTS_SPEAKER", "").strip()
+SARVAM_TTS_VOICES = {
+    "en-IN": "simran_en_customer",
+    "hi-IN": "simran_enhi_customer",
+    "mr-IN": "ritu_mr_insurance",
+    "bn-IN": "roopa_bn_conversational",
+    "ta-IN": "vijay_ta_narration",
+    "te-IN": "kavitha_te_conversation",
+    "kn-IN": "chaitra_kn_conversation",
+    "gu-IN": "pooja_gu_customer",
+    "pa-IN": "anand_pa_customer",
+    # ml-IN and od-IN: no v4 personas yet, so they stay on v3 (Sarvam's own advice)
+}
 
 # RBI bank rate used for insurer-delay interest (PPI Regulations 2017: bank rate + 2%)
 BANK_RATE = float(os.getenv("BANK_RATE", "5.75"))

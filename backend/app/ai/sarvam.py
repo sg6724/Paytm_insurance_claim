@@ -167,17 +167,46 @@ def stt(audio: bytes, filename: str = "audio.m4a", language_code: str | None = N
     return {"transcript": j.get("transcript", ""), "language_code": j.get("language_code")}
 
 
+def tts_voice(language_code: str) -> tuple[str, str]:
+    """(model, speaker) for a language: a v4-flash persona where one exists, else the v3 fallback."""
+    if config.SARVAM_TTS_MODEL.startswith("bulbul:v4"):
+        speaker = config.SARVAM_TTS_SPEAKER or config.SARVAM_TTS_VOICES.get(language_code)
+        if speaker:
+            return config.SARVAM_TTS_MODEL, speaker
+        return config.SARVAM_TTS_FALLBACK_MODEL, config.SARVAM_TTS_FALLBACK_SPEAKER
+    return config.SARVAM_TTS_MODEL, config.SARVAM_TTS_SPEAKER or config.SARVAM_TTS_FALLBACK_SPEAKER
+
+
+# Bulbul reads "₹" as the English "rupees" in these languages; the local word sounds natural.
+RUPEE_WORD = {"ta-IN": "ரூபாய்", "te-IN": "రూపాయలు", "bn-IN": "টাকা", "ml-IN": "രൂപ"}
+_RUPEE = re.compile(r"(?:₹|\bRs\.?|\bINR)\s?(\d+(?:,\d+)*(?:\.\d+)?)(\s*)(\S*)")
+
+
+def speakable(text: str, language_code: str) -> str:
+    word = RUPEE_WORD.get(language_code)
+    if not word:
+        return text
+    stem = word[:3]  # matches inflected forms too (টাকার, രൂപയുടെ), so a word already there is not doubled
+    return _RUPEE.sub(lambda m: f"{m[1]}{m[2]}{m[3]}" if m[3].startswith(stem) else f"{m[1]} {word}{m[2]}{m[3]}", text)
+
+
 def tts(text: str, language_code: str = "hi-IN") -> dict:
     """Returns {"audio_base64": ..., "mime": "audio/wav"}."""
-    text = text[:2400]
-    payload = {"text": text, "lang": language_code, "model": config.SARVAM_TTS_MODEL, "speaker": config.SARVAM_TTS_SPEAKER}
+    text = speakable(text[:2400], language_code)
+    model, speaker = tts_voice(language_code)
+    v4 = model.startswith("bulbul:v4")
+    payload = {"text": text, "lang": language_code, "model": model, "speaker": speaker}
+    if v4:
+        payload["pace"] = config.SARVAM_TTS_PACE
     hit = cache_get("tts", payload)
     if hit is not None:
-        return hit["value"]
+        return hit.get("value", hit)  # older entries were saved unwrapped
     if not available():
         raise SarvamError("Sarvam key not configured")
     body = {"text": text, "target_language_code": language_code, "language_code": language_code,
-            "model": config.SARVAM_TTS_MODEL, "speaker": config.SARVAM_TTS_SPEAKER}
+            "model": model, "speaker": speaker}
+    if v4:  # Sarvam's v4 guide: let it normalise numbers, dates and ₹ itself
+        body |= {"pace": config.SARVAM_TTS_PACE, "enable_preprocessing": True}
     try:
         r = httpx.post(f"{config.SARVAM_BASE}/text-to-speech", headers=_headers(), json=body, timeout=TIMEOUT)
         if r.status_code >= 400:
@@ -191,7 +220,7 @@ def tts(text: str, language_code: str = "hi-IN") -> dict:
     except httpx.HTTPError as e:
         raise SarvamError(f"tts network error: {e}") from e
     value = {"audio_base64": audio, "mime": "audio/wav"}
-    cache_put("tts", payload, value)
+    cache_put("tts", payload, {"value": value})
     return value
 
 

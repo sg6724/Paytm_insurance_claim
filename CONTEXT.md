@@ -107,7 +107,7 @@ claim-to-cash/
 ```
 Expo Go app ──HTTP──► FastAPI :8787 (laptop)
                         ├─ rules/engine.py   (deterministic; tested)
-                        ├─ ai/* → Sarvam     (sarvam-105b chat, gemma4 vision on /v2, saaras:v3 STT, bulbul:v3 TTS)
+                        ├─ ai/* → Sarvam     (sarvam-105b chat, gemma4 vision on /v2, saaras:v3 STT, bulbul:v4-flash TTS)
                         ├─ claims.py         (workflow + mock insurer/lender/NHCX)
                         └─ store.py SQLite   (backend/storage/claim_to_cash.db, gitignored)
 ```
@@ -283,7 +283,7 @@ On 31 Oct the laptop's Wi-Fi IP was `10.50.123.136`. If the phone switches to th
   - Chat runs `sarvam-105b` on `/v1/chat/completions`, with `reasoning_effort: null` for speed and `response_format: json_object` in JSON mode. It occasionally returns non-JSON; the client retries once.
   - Vision goes through `/v2/chat/completions` with model `gemma4` and an OpenAI-style `image_url` data URI.
   - STT: `/speech-to-text`, multipart, `model=saaras:v3`, maximum 30 seconds per synchronous call.
-  - TTS: `/text-to-speech`, `bulbul:v3`, speaker `priya`. It returns base64 in `audios[0]`; the client handles both base64 and raw bytes.
+  - TTS: `/text-to-speech`, `bulbul:v4-flash` with one persona per language (`config.SARVAM_TTS_VOICES`, e.g. `simran_en_customer`, `simran_enhi_customer`, `ritu_mr_insurance`). Malayalam and Odia have no v4 persona yet and stay on `bulbul:v3` / `priya`. v4 rejects v3 names like `priya` with a 400. `enable_preprocessing` is on; ₹ amounts become the local word (ரூபாய், రూపాయలు, টাকা, രൂപ) because Bulbul reads ₹ as English "rupees" in those languages. Pitch/loudness are accepted but left at default. It returns base64 in `audios[0]`; the client handles both base64 and raw bytes.
 - **Expo SDK 58 and React Native 0.88.**
   - `expo/fetch` is the global `fetch` and rejects React Native's `{ uri, name, type }` FormData parts ("Unsupported FormDataPart implementation"). All uploads go through `upload()` in `lib/api.ts`, which uses `new File(uri).upload(...)` from `expo-file-system` with `UploadType.MULTIPART`.
   - Don't start Metro with `EXPO_PUBLIC_API_URL` set to a LAN IP: the laptop's IP changes between networks. Without it the app calls the backend on the same host it loaded from.

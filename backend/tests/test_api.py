@@ -288,8 +288,44 @@ def test_recordings_are_sent_to_sarvam_with_a_type_it_accepts():
     assert audio_type("x.wav") == "audio/wav" and audio_type("x.unknown") == "application/octet-stream"
 
 
+def test_each_language_gets_a_v4_persona_or_the_v3_fallback():
+    from app.ai.sarvam import tts_voice
+    assert tts_voice("hi-IN") == ("bulbul:v4-flash", "simran_enhi_customer")
+    assert tts_voice("ta-IN") == ("bulbul:v4-flash", "vijay_ta_narration")
+    assert tts_voice("ml-IN") == ("bulbul:v3", "priya")  # no v4 persona yet; a v4 call with priya is a 400
+    from app import config
+    for lang in config.LANGUAGES:
+        if lang["tts"]:
+            model, speaker = tts_voice(lang["code"])
+            assert model == "bulbul:v3" or speaker.count("_") >= 2, (lang["code"], speaker)
+
+
+def test_rupee_amounts_are_spoken_with_the_local_word():
+    from app.ai.sarvam import speakable
+    assert speakable("உங்கள் ₹45,000 க்ளெய்ம், ₹3,200.", "ta-IN") == "உங்கள் 45,000 ரூபாய் க்ளெய்ம், 3,200 ரூபாய்."
+    assert speakable("আপনার ₹45,000 টাকার দাবি", "bn-IN") == "আপনার 45,000 টাকার দাবি"  # not "টাকা টাকার"
+    assert speakable("आपका ₹45,000 का claim", "hi-IN") == "आपका ₹45,000 का claim"  # already read well
+
+
 def test_an_empty_answer_is_an_error_and_is_not_saved(api, monkeypatch):
     from app.ai import tools
     monkeypatch.setattr(tools, "assistant", lambda m, lang, ctx: "  ")
     assert api.post("/assistant/chat", json={"message": "Let us continue"}).status_code == 502
     assert api.get("/assistant/thread").json()["messages"] == []
+
+
+def test_speaking_the_same_text_twice_replays_from_cache(monkeypatch):
+    import base64 as b64
+    from app.ai import sarvam
+    calls = []
+
+    class Resp:
+        status_code, headers = 200, {"content-type": "application/json"}
+        def json(self):
+            return {"audios": [b64.b64encode(b"RIFFfake").decode()]}
+
+    monkeypatch.setattr(sarvam.config, "SARVAM_API_KEY", "test")
+    monkeypatch.setattr(sarvam.httpx, "post", lambda *a, **k: calls.append(k["json"]) or Resp())
+    first = sarvam.tts("Your claim is approved, test replay.", "en-IN")
+    assert sarvam.tts("Your claim is approved, test replay.", "en-IN") == first  # used to raise KeyError: 'value'
+    assert len(calls) == 1 and calls[0]["model"] == "bulbul:v4-flash" and calls[0]["enable_preprocessing"] is True
