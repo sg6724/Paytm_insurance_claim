@@ -345,6 +345,13 @@ def recap_conversation(messages: list[dict], summary: str, lang: str, next_step:
 def describe_attachment(data: bytes, mime: str) -> str:
     prompt = ("Read this screenshot or document shared by an Indian health insurance customer (it may be an insurer SMS/WhatsApp message, "
               "a letter, a bill or an app screen). Transcribe the important text and say in one line what it is. Plain text, max 200 words.")
-    if mime == "application/pdf":
-        return pdf_text(data, 6000)
+    if mime == "application/pdf" or data[:5] == b"%PDF-":
+        text = pdf_text(data, 8000)
+        if len(text.replace("--- page", "").strip()) >= 80:
+            return text
+        # Scanned PDF with no text layer: read the first pages as images instead.
+        doc = pymupdf.open(stream=data, filetype="pdf")
+        pages = [sarvam.vision(prompt, doc[i].get_pixmap(dpi=110).tobytes("png"), "image/png", json_mode=False, task="attachment")
+                 for i in range(min(2, doc.page_count))]
+        return "\n\n".join(f"--- page {i + 1} ---\n{t}" for i, t in enumerate(pages))
     return sarvam.vision(prompt, data, mime, json_mode=False, task="attachment")

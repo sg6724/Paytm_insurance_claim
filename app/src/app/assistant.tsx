@@ -1,4 +1,5 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
+import * as DocumentPicker from 'expo-document-picker';
 import * as ImagePicker from 'expo-image-picker';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
@@ -9,10 +10,11 @@ import { fmtTime, get, send, upload } from '@/lib/api';
 import { useApp } from '@/lib/app-context';
 import { C } from '@/lib/theme';
 import { AssistantAvatar } from '@/ui/assistant-avatar';
-import { Btn, Card } from '@/ui/kit';
+import { Btn, Card, Row, Sheet } from '@/ui/kit';
 import { ListenButton, MicButton, useSpeaker } from '@/ui/voice';
 
-type Msg = { role: 'user' | 'assistant'; content: string; image?: string | boolean };
+type Msg = { role: 'user' | 'assistant'; content: string; image?: string | boolean; file?: string };
+type AskOpts = { attachment?: string; image?: string; file?: string; spoken?: boolean };
 type Recap = { recap: string | null; next_step: string | null; last_at: string };
 
 const SUGGEST: Record<string, string[]> = {
@@ -34,6 +36,7 @@ export default function Assistant() {
   const [recap, setRecap] = useState<Recap | null>(null);
   const scroll = useRef<any>(null);
   const speaker = useSpeaker();
+  const [pickOpen, setPickOpen] = useState(false);
   const langName = langs.find((l) => l.code === lang)?.native ?? 'English';
 
   const scope = [assistantCtx.claim_id && `claim_id=${assistantCtx.claim_id}`, assistantCtx.policy_id && `policy_id=${assistantCtx.policy_id}`].filter(Boolean).join('&');
@@ -69,15 +72,15 @@ export default function Assistant() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [human]);
 
-  async function ask(text: string, attachmentText?: string, image?: string, spoken = false) {
+  async function ask(text: string, { attachment: attachmentText, image, file, spoken = false }: AskOpts = {}) {
     if (!text.trim() && !attachmentText) return;
-    const shown: Msg = { role: 'user', content: text || 'Please look at this.', image };
+    const shown: Msg = { role: 'user', content: text || (file ? 'Please explain this document.' : 'Please look at this.'), image, file };
     setRecap(null);
     setMsgs((m) => [...m, shown]);
     setInput('');
     setBusy(true);
     try {
-      const out = await send('/assistant/chat', { message: shown.content, attachment: attachmentText, lang, ...assistantCtx });
+      const out = await send('/assistant/chat', { message: shown.content, attachment: attachmentText, attachment_name: file, lang, ...assistantCtx });
       setMsgs((m) => [...m, { role: 'assistant', content: out.reply }]);
       if (spoken && out.reply) speaker.speak(out.reply); // they talked, so answer out loud
     } catch (e: any) {
@@ -88,20 +91,28 @@ export default function Assistant() {
     }
   }
 
-  async function attach() {
-    const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (!perm.granted) return;
-    const r = await ImagePicker.launchImageLibraryAsync({ quality: 0.7 });
-    if (r.canceled) return;
-    const a = r.assets[0];
+  async function share(kind: 'image' | 'pdf') {
+    setPickOpen(false);
+    let picked: { uri: string; name: string; type: string } | null = null;
+    if (kind === 'image') {
+      const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!perm.granted) return;
+      const r = await ImagePicker.launchImageLibraryAsync({ quality: 0.7 });
+      if (r.canceled) return;
+      picked = { uri: r.assets[0].uri, name: 'screenshot.jpg', type: r.assets[0].mimeType ?? 'image/jpeg' };
+    } else {
+      const r = await DocumentPicker.getDocumentAsync({ type: 'application/pdf', copyToCacheDirectory: true });
+      if (r.canceled) return;
+      picked = { uri: r.assets[0].uri, name: r.assets[0].name, type: 'application/pdf' };
+    }
     setBusy(true);
     try {
-      const out = await upload('/assistant/attach', { uri: a.uri, name: 'screenshot.jpg', type: a.mimeType ?? 'image/jpeg' });
+      const out = await upload('/assistant/attach', picked);
       setBusy(false);
-      await ask(input, out.text, a.uri);
+      await ask(input, kind === 'pdf' ? { attachment: out.text, file: picked.name } : { attachment: out.text, image: picked.uri });
     } catch (e: any) {
       setBusy(false);
-      setMsgs((m) => [...m, { role: 'assistant', content: `I couldn't read that image (${e.message}).` }]);
+      setMsgs((m) => [...m, { role: 'assistant', content: `I couldn't read that ${kind === 'pdf' ? 'PDF' : 'image'} (${e.message}).` }]);
     }
   }
 
@@ -146,10 +157,10 @@ export default function Assistant() {
         ) : null}
         {msgs.map((m, i) => (
           <View key={i} style={{ alignSelf: m.role === 'user' ? 'flex-end' : 'flex-start', maxWidth: '88%', backgroundColor: m.role === 'user' ? C.navy : C.paleBlue, borderRadius: 16, padding: 12, gap: 8 }}>
-            {m.image ? (
+            {m.image || m.file ? (
               <View style={{ flexDirection: 'row', gap: 6, alignItems: 'center' }}>
-                <Ionicons name="image-outline" size={16} color="#fff" />
-                <Text style={{ color: '#fff', fontSize: 12 }}>Screenshot shared</Text>
+                <Ionicons name={m.file ? 'document-text-outline' : 'image-outline'} size={16} color="#fff" />
+                <Text style={{ color: '#fff', fontSize: 12, flexShrink: 1 }} numberOfLines={1}>{m.file ? `PDF shared: ${m.file}` : 'Screenshot shared'}</Text>
               </View>
             ) : null}
             <Text style={{ color: m.role === 'user' ? '#fff' : C.text, lineHeight: 20 }}>{m.content.replace(/\*\*/g, '')}</Text>
@@ -182,18 +193,22 @@ export default function Assistant() {
       </ScrollView>
       <View style={{ padding: 12, paddingBottom: insets.bottom + 10, borderTopWidth: 1, borderTopColor: C.line, gap: 8 }}>
         <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}>
-          <Pressable onPress={attach} style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: C.skySoft, alignItems: 'center', justifyContent: 'center' }} accessibilityLabel="Share a screenshot">
-            <Ionicons name="image-outline" size={20} color={C.navy} />
+          <Pressable onPress={() => setPickOpen(true)} style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: C.skySoft, alignItems: 'center', justifyContent: 'center' }} accessibilityLabel="Share a screenshot or PDF">
+            <Ionicons name="attach" size={22} color={C.navy} />
           </Pressable>
           <TextInput value={input} onChangeText={setInput} placeholder={t('askPlaceholder')} placeholderTextColor={C.faint} onSubmitEditing={() => ask(input)} returnKeyType="send"
             style={{ flex: 1, borderWidth: 1.5, borderColor: C.line, borderRadius: 24, paddingHorizontal: 14, paddingVertical: 10, fontSize: 14, color: C.text }} />
-          <MicButton onText={(tx) => ask(tx, undefined, undefined, true)} size={44} />
+          <MicButton onText={(tx) => ask(tx, { spoken: true })} size={44} />
           <Pressable onPress={() => ask(input)} style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: C.navy, alignItems: 'center', justifyContent: 'center' }}>
             <Ionicons name="send" size={18} color="#fff" />
           </Pressable>
         </View>
         {!ticket ? <Btn title={t('talkToHuman')} kind="ghost" icon="headset-outline" style={{ height: 40 }} onPress={handoff} /> : null}
       </View>
+      <Sheet visible={pickOpen} onClose={() => setPickOpen(false)} title="Share with the assistant">
+        <Row icon="image-outline" title="Photo or screenshot" sub="An insurer SMS, WhatsApp message, letter or bill" onPress={() => share('image')} />
+        <Row icon="document-text-outline" title="PDF document" sub="A policy, settlement letter, bill or discharge summary" onPress={() => share('pdf')} />
+      </Sheet>
     </KeyboardAvoidingView>
   );
 }

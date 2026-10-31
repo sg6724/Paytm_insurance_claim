@@ -267,3 +267,15 @@ def test_hospital_chat_asks_for_what_is_missing_when_the_ai_is_unreachable(api):
     pol = api.post("/samples/sunita_gallbladder/policy").json()
     r = api.post("/hospital/chat", json={"policy_id": pol["id"], "messages": [{"role": "user", "content": "hello"}], "lang": "en-IN"}).json()
     assert not r["ready"] and "who is in hospital" in r["reply"]
+
+
+def test_assistant_reads_a_shared_pdf(api):
+    from pathlib import Path
+    pdf = Path(__file__).resolve().parents[2] / "demo-docs" / "Sunita_Settlement_Letter.pdf"
+    r = api.post("/assistant/attach", files={"file": ("letter.pdf", pdf.read_bytes(), "application/octet-stream")})
+    assert r.status_code == 200 and r.json()["kind"] == "pdf"
+    assert "62,400" in r.json()["text"]
+
+
+def test_assistant_rejects_an_empty_file(api):
+    assert api.post("/assistant/attach", files={"file": ("x.pdf", b"", "application/pdf")}).status_code == 422

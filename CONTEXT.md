@@ -154,7 +154,7 @@ After an appeal is sent, the next `advance` makes the mock insurer answer it fro
 | Hospital chat | The LLM pulls out facts as JSON. The backend forces `ready=true` once it has the member, room rent or category, and the diagnosis or procedure, then runs `hospital_check`. |
 | Live corrections | `claims.validate()` is deterministic: format checks, cross-checks against extracted documents and the policy, and risk hints. The app calls it debounced by 450 ms. |
 | Audit log | Every AI action, consent and submission goes through `store.audit()` and shows on the app's "Privacy & AI activity" screen. |
-| TTS | `GET /assistant/tts.wav?text=&lang=` returns a wav, so the app streams it straight into `expo-audio`. |
+| TTS | `GET /assistant/tts.wav?text=&lang=` returns a wav. The app splits text into sentence chunks (`speechChunks`), plays the first as soon as it is ready and prefetches the rest, so speech starts in about 2 s. Replies to spoken questions are read out automatically. |
 | UI translation | `POST /i18n` translates the `EN` strings dictionary once per language, cached on disk. |
 | Hospital chat fallback | `ai/stay_facts.py` reads room, rent, illness and patient from the user's own words (English, Hindi, Marathi) and fills only what the LLM missed. The stay check works even if Sarvam is down. |
 | Human review | Documents read under 60% confidence, poor policy reads (6+ uncertain fields) and decisions the rules can't explain open a mock review ticket. |
@@ -187,7 +187,7 @@ After an appeal is sent, the next `advance` makes the mock insurer answer it fro
 | `claims/[id]/bridge` | Key Facts Statement and accept |
 | `claims/[id]/fhir` | FHIR bundle viewer |
 | `pay` | Mock UPI |
-| `assistant` | Modal chat: text, mic, screenshot, talk to a human |
+| `assistant` | Modal chat: text, mic (stops on a pause, replies read out), photo or PDF sharing, talk to a human. Opened by the draggable Ask button, which snaps to the nearest side |
 
 ## 7. How to run
 
@@ -263,7 +263,7 @@ On 31 Oct the laptop's Wi-Fi IP was `10.50.123.136`. If the phone switches to th
 - `POST /assistant/chat` (body: `message`, optional `attachment`; history comes from the saved thread)
 - `GET` and `DELETE /assistant/thread`
 - `GET /assistant/thread/recap`
-- `POST /assistant/attach`
+- `POST /assistant/attach` (photo, screenshot or PDF; scanned PDFs are read page by page with vision)
 - `POST /assistant/stt`
 - `POST /assistant/tts`
 - `GET /assistant/tts.wav`
@@ -285,6 +285,8 @@ On 31 Oct the laptop's Wi-Fi IP was `10.50.123.136`. If the phone switches to th
   - STT: `/speech-to-text`, multipart, `model=saaras:v3`, maximum 30 seconds per synchronous call.
   - TTS: `/text-to-speech`, `bulbul:v3`, speaker `priya`. It returns base64 in `audios[0]`; the client handles both base64 and raw bytes.
 - **Expo SDK 58 and React Native 0.88.**
+  - `expo/fetch` is the global `fetch` and rejects React Native's `{ uri, name, type }` FormData parts ("Unsupported FormDataPart implementation"). All uploads go through `upload()` in `lib/api.ts`, which uses `new File(uri).upload(...)` from `expo-file-system` with `UploadType.MULTIPART`.
+  - Don't start Metro with `EXPO_PUBLIC_API_URL` set to a LAN IP: the laptop's IP changes between networks. Without it the app calls the backend on the same host it loaded from.
   - `ScrollView` refs need `useRef<any>`.
   - The React Compiler's lint forbids synchronous `setState` in effects and reading refs during render. `useAsync` in `kit.tsx` is written around both.
   - Always check the versioned docs (`app/AGENTS.md`).

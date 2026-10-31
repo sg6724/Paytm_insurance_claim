@@ -712,7 +712,8 @@ def upi_pay(body: UpiIn):
 
 class AssistantIn(BaseModel):
     message: str | None = None        # the new message; history comes from the saved thread
-    attachment: str | None = None     # text read from a screenshot, for the model only
+    attachment: str | None = None     # text read from a screenshot or PDF, for the model only
+    attachment_name: str | None = None  # PDF file name, shown on the saved message
     messages: list[dict] = []         # older clients send the whole history instead
     lang: str = "en-IN"
     screen: str | None = None
@@ -756,7 +757,7 @@ def assistant_chat(body: AssistantIn):
         reply = tools.assistant(history, body.lang, ctx)
     except SarvamError as e:
         raise HTTPException(502, str(e))  # nothing is saved, so the user can simply ask again
-    memory.append(thread, "user", said, image=bool(body.attachment), attachment=body.attachment)
+    memory.append(thread, "user", said, image=bool(body.attachment) and not body.attachment_name, file=body.attachment_name, attachment=body.attachment)
     memory.append(thread, "assistant", reply)
     older = memory.pending_summary(thread)
     if older:
@@ -815,13 +816,19 @@ def clear_thread(claim_id: str | None = None, policy_id: str | None = None):
 @app.post("/assistant/attach")
 async def assistant_attach(file: UploadFile = File(...)):
     data = await file.read()
-    mime = file.content_type or "image/jpeg"
+    if not data:
+        raise HTTPException(422, "The file is empty.")
+    name = file.filename or ""
+    is_pdf = data[:5] == b"%PDF-" or name.lower().endswith(".pdf") or file.content_type == "application/pdf"
+    mime = "application/pdf" if is_pdf else (file.content_type if (file.content_type or "").startswith("image/") else "image/jpeg")
     try:
         text = tools.describe_attachment(data, mime)
     except SarvamError as e:
         raise HTTPException(502, str(e))
-    store.audit("ai", "attachment_read", f"Read shared {'screenshot' if mime.startswith('image') else 'file'} {file.filename}")
-    return {"text": text}
+    except Exception as e:
+        raise HTTPException(422, f"Couldn't open this file: {e}")
+    store.audit("ai", "attachment_read", f"Read shared {'PDF' if is_pdf else 'screenshot'} {name}")
+    return {"text": text, "kind": "pdf" if is_pdf else "image", "filename": name}
 
 
 @app.post("/assistant/stt")
