@@ -1,98 +1,126 @@
-import * as Device from 'expo-device';
-import { Platform, StyleSheet } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import Ionicons from '@expo/vector-icons/Ionicons';
+import { router } from 'expo-router';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { AnimatedIcon } from '@/components/animated-icon';
-import { HintRow } from '@/components/hint-row';
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { WebBadge } from '@/components/web-badge';
-import { BottomTabInset, MaxContentWidth, Spacing } from '@/constants/theme';
+import { useApp } from '@/lib/app-context';
+import { C, shadow } from '@/lib/theme';
+import type { IconName } from '@/ui/kit';
 
-function getDevMenuHint() {
-  if (Platform.OS === 'web') {
-    return <ThemedText type="small">use browser devtools</ThemedText>;
-  }
-  if (Device.isDevice) {
-    return (
-      <ThemedText type="small">
-        shake device or press <ThemedText type="code">m</ThemedText> in terminal
-      </ThemedText>
-    );
-  }
-  const shortcut = Platform.OS === 'android' ? 'cmd+m (or ctrl+m)' : 'cmd+d';
+type Tile = { icon: IconName; label: string; onPress?: () => void; badge?: string };
+
+function Grid({ title, tiles, action }: { title: string; tiles: Tile[]; action?: string }) {
   return (
-    <ThemedText type="small">
-      press <ThemedText type="code">{shortcut}</ThemedText>
-    </ThemedText>
+    <View style={st.block}>
+      <View style={st.blockHead}>
+        <Text style={st.blockTitle}>{title}</Text>
+        {action ? <Text style={{ color: C.sky, fontWeight: '600' }}>{action} →</Text> : null}
+      </View>
+      <View style={st.grid}>
+        {tiles.map((t) => (
+          <Pressable key={t.label} style={st.tile} onPress={t.onPress} disabled={!t.onPress}>
+            {t.badge ? (
+              <View style={st.badge}>
+                <Text style={st.badgeText}>{t.badge}</Text>
+              </View>
+            ) : null}
+            <Ionicons name={t.icon} size={26} color={t.onPress ? C.navy : '#3B6BB1'} />
+            <Text style={st.tileText}>{t.label}</Text>
+          </Pressable>
+        ))}
+      </View>
+    </View>
   );
 }
 
-export default function HomeScreen() {
+/** Paytm-style home: the same grid users already know, with the Health Insurance tile as the way in. */
+export default function Home() {
+  const insets = useSafeAreaInsets();
+  const { t } = useApp();
+  const goInsurance = () => router.push('/insurance');
   return (
-    <ThemedView style={styles.container}>
-      <SafeAreaView style={styles.safeArea}>
-        <ThemedView style={styles.heroSection}>
-          <AnimatedIcon />
-          <ThemedText type="title" style={styles.title}>
-            Welcome to&nbsp;Expo
-          </ThemedText>
-        </ThemedView>
-
-        <ThemedText type="code" style={styles.code}>
-          get started
-        </ThemedText>
-
-        <ThemedView type="backgroundElement" style={styles.stepContainer}>
-          <HintRow
-            title="Try editing"
-            hint={<ThemedText type="code">src/app/index.tsx</ThemedText>}
-          />
-          <HintRow title="Dev tools" hint={getDevMenuHint()} />
-          <HintRow
-            title="Fresh start"
-            hint={<ThemedText type="code">npm run reset-project</ThemedText>}
-          />
-        </ThemedView>
-
-        {Platform.OS === 'web' && <WebBadge />}
-      </SafeAreaView>
-    </ThemedView>
+    <View style={{ flex: 1, backgroundColor: C.bg }}>
+      <View style={[st.top, { paddingTop: insets.top + 8 }]}>
+        <View style={st.avatar}>
+          <Text style={{ color: C.navy, fontWeight: '700' }}>SK</Text>
+        </View>
+        <View style={st.search}>
+          <Ionicons name="search" size={18} color={C.sub} />
+          <Text style={{ color: C.sub }}>{t('searchPay')}</Text>
+        </View>
+        <Pressable onPress={() => router.push('/settings')} hitSlop={10}>
+          <Ionicons name="language" size={24} color={C.navy} />
+        </Pressable>
+      </View>
+      <ScrollView contentContainerStyle={{ padding: 12, gap: 12, paddingBottom: 120 }}>
+        <Pressable style={st.promo} onPress={goInsurance}>
+          <View style={st.promoIcon}>
+            <Ionicons name="shield-checkmark" size={26} color={C.navy} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={{ fontWeight: '800', color: C.text, fontSize: 16 }}>{t('claimsNew')}</Text>
+            <Text style={{ color: C.sub, fontSize: 13 }}>{t('claimsNewSub')}</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={22} color={C.text} />
+        </Pressable>
+        <Grid
+          title="Recharge & Bills"
+          action="View All"
+          tiles={[
+            { icon: 'phone-portrait-outline', label: 'Mobile Recharge' },
+            { icon: 'card-outline', label: 'Credit Card Bill' },
+            { icon: 'bulb-outline', label: 'Electricity Bill' },
+            { icon: 'car-outline', label: 'FASTag Recharge' },
+          ]}
+        />
+        <Grid
+          title={t('financialServices')}
+          action={t('viewAll')}
+          tiles={[
+            { icon: 'cash-outline', label: 'Loan' },
+            { icon: 'bar-chart-outline', label: 'Mutual Fund', badge: 'SIP @ ₹21' },
+            { icon: 'car-sport-outline', label: 'Car Insurance' },
+            { icon: 'bicycle-outline', label: 'Bike Insurance' },
+            { icon: 'wallet-outline', label: 'Paytm Postpaid' },
+            { icon: 'trending-up-outline', label: 'Stocks' },
+            { icon: 'card-outline', label: 'Get Credit Card' },
+            { icon: 'heart-outline', label: t('healthInsurance'), onPress: goInsurance, badge: 'Claims' },
+          ]}
+        />
+        <Grid
+          title="Travel & Tickets"
+          tiles={[
+            { icon: 'airplane-outline', label: 'Flight' },
+            { icon: 'train-outline', label: 'Train' },
+            { icon: 'bus-outline', label: 'Bus' },
+            { icon: 'subway-outline', label: 'Metro' },
+          ]}
+        />
+      </ScrollView>
+      <View style={[st.scanWrap, { bottom: insets.bottom + 20 }]}>
+        <View style={st.scan}>
+          <Ionicons name="scan" size={20} color="#fff" />
+          <Text style={{ color: '#fff', fontWeight: '700', fontSize: 16 }}>Scan QR</Text>
+        </View>
+      </View>
+    </View>
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    justifyContent: 'center',
-    flexDirection: 'row',
-  },
-  safeArea: {
-    flex: 1,
-    paddingHorizontal: Spacing.four,
-    alignItems: 'center',
-    gap: Spacing.three,
-    paddingBottom: BottomTabInset + Spacing.three,
-    maxWidth: MaxContentWidth,
-  },
-  heroSection: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    flex: 1,
-    paddingHorizontal: Spacing.four,
-    gap: Spacing.four,
-  },
-  title: {
-    textAlign: 'center',
-  },
-  code: {
-    textTransform: 'uppercase',
-  },
-  stepContainer: {
-    gap: Spacing.three,
-    alignSelf: 'stretch',
-    paddingHorizontal: Spacing.three,
-    paddingVertical: Spacing.four,
-    borderRadius: Spacing.four,
-  },
+const st = StyleSheet.create({
+  top: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 12, paddingBottom: 10, backgroundColor: C.bg },
+  avatar: { width: 38, height: 38, borderRadius: 19, backgroundColor: '#CFF5EC', alignItems: 'center', justifyContent: 'center' },
+  search: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: '#fff', borderRadius: 22, paddingHorizontal: 14, height: 44 },
+  promo: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: C.skySoft, borderRadius: 16, padding: 14, borderWidth: 1, borderColor: '#BFE9F8' },
+  promoIcon: { width: 46, height: 46, borderRadius: 12, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center' },
+  block: { backgroundColor: '#fff', borderRadius: 16, padding: 14, ...shadow },
+  blockHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
+  blockTitle: { fontSize: 18, fontWeight: '700', color: C.text },
+  grid: { flexDirection: 'row', flexWrap: 'wrap', rowGap: 16 },
+  tile: { width: '25%', alignItems: 'center', gap: 6, paddingHorizontal: 2 },
+  tileText: { fontSize: 12, color: C.text, textAlign: 'center' },
+  badge: { position: 'absolute', top: -10, backgroundColor: '#FFD43B', paddingHorizontal: 5, borderRadius: 4, zIndex: 1 },
+  badgeText: { fontSize: 8, fontWeight: '800', color: C.text },
+  scanWrap: { position: 'absolute', left: 0, right: 0, alignItems: 'center' },
+  scan: { flexDirection: 'row', gap: 8, alignItems: 'center', backgroundColor: C.navy, paddingHorizontal: 22, height: 50, borderRadius: 25, ...shadow, elevation: 6 },
 });

@@ -57,6 +57,26 @@ def languages():
     return config.LANGUAGES
 
 
+class I18nIn(BaseModel):
+    lang: str
+    strings: dict
+
+
+@app.post("/i18n")
+def i18n(body: I18nIn):
+    """Translate the app's UI strings once per language (cached on disk)."""
+    if body.lang.startswith("en"):
+        return body.strings
+    try:
+        out = sarvam.chat([
+            {"role": "system", "content": "Translate the JSON values into the target language for a Paytm insurance app. Keep keys unchanged, keep it short and natural, keep ₹ and brand names (Paytm, Claim-to-Cash, UPI) as is. Reply with the JSON object only."},
+            {"role": "user", "content": f"Target language: {config.LANG_NAME.get(body.lang, body.lang)}\n{__import__('json').dumps(body.strings, ensure_ascii=False)}"},
+        ], json_mode=True, task="i18n", max_tokens=4000)
+        return {k: out.get(k, v) for k, v in body.strings.items()}
+    except Exception:
+        return body.strings
+
+
 @app.get("/profile")
 def get_profile():
     ensure_profile()
@@ -678,6 +698,15 @@ def assistant_tts(body: TtsIn):
         return sarvam.tts(body.text, lang)
     except SarvamError as e:
         raise HTTPException(502, str(e))
+
+
+@app.get("/assistant/tts.wav")
+def assistant_tts_wav(text: str, lang: str = "hi-IN"):
+    """Audio as a plain URL so the app can stream it straight into an audio player."""
+    import base64
+    from fastapi import Response
+    out = assistant_tts(TtsIn(text=text, lang=lang))
+    return Response(base64.b64decode(out["audio_base64"]), media_type="audio/wav")
 
 
 class TicketIn(BaseModel):

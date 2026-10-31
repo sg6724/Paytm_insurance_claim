@@ -204,7 +204,7 @@ def hospital_chat(policy: dict, messages: list[dict], facts: dict, lang: str) ->
            "the facts needed to check the stay against the policy. Ask at most one or two short questions at a time. "
            "Facts: member_id (choose from MEMBERS), admission_type (emergency|planned), admission_date (YYYY-MM-DD), room_category "
            "(general_ward|twin_sharing|single_private|deluxe|icu), room_rent_per_day (number, rupees), expected_days (number), "
-           "diagnosis, procedure, is_accident (bool), estimated_bill (number, optional), claim_type (cashless|reimbursement). "
+           "diagnosis and procedure (always written in English medical terms, e.g. 'cholelithiasis', 'laparoscopic cholecystectomy', 'knee replacement'), is_accident (bool), estimated_bill (number, optional), claim_type (cashless|reimbursement). "
            "A bill is NOT required; never insist on one. Once you know at least the member, room rent or category, and the "
            "illness or procedure, set ready=true and say you are checking the policy. " + lang_instruction(lang) +
            "\nReply as JSON: {\"reply\": str, \"facts\": {only facts known so far}, \"ready\": bool}.")
@@ -213,7 +213,8 @@ def hospital_chat(policy: dict, messages: list[dict], facts: dict, lang: str) ->
     out = sarvam.chat(msgs, json_mode=True, task="hospital_chat", use_cache=True, max_tokens=800)
     merged = dict(facts)
     merged.update({k: v for k, v in (out.get("facts") or {}).items() if k in FACT_KEYS and v not in (None, "")})
-    return {"reply": out.get("reply", ""), "facts": merged, "ready": bool(out.get("ready"))}
+    enough = bool(merged.get("member_id") and (merged.get("room_rent_per_day") or merged.get("room_category")) and (merged.get("diagnosis") or merged.get("procedure")))
+    return {"reply": out.get("reply", ""), "facts": merged, "ready": bool(out.get("ready")) or enough}
 
 
 def summarise_check(policy: dict, check: dict, lang: str) -> str:

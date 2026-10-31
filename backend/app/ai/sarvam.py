@@ -80,14 +80,27 @@ def chat(messages: list[dict], *, json_mode: bool = False, max_tokens: int = 150
         "max_tokens": max_tokens,
         "reasoning_effort": None,
     }
-    try:
-        r = httpx.post(f"{config.SARVAM_BASE}/v1/chat/completions", headers=_headers(), json=body, timeout=TIMEOUT)
-        if r.status_code >= 400:
-            raise SarvamError(f"chat {r.status_code}: {r.text[:300]}")
-        content = r.json()["choices"][0]["message"].get("content") or ""
-    except httpx.HTTPError as e:
-        raise SarvamError(f"chat network error: {e}") from e
-    value = _extract_json(content) if json_mode else content.strip()
+    if json_mode:
+        body["response_format"] = {"type": "json_object"}
+    value = None
+    for attempt in range(2):
+        try:
+            r = httpx.post(f"{config.SARVAM_BASE}/v1/chat/completions", headers=_headers(), json=body, timeout=TIMEOUT)
+            if r.status_code >= 400:
+                raise SarvamError(f"chat {r.status_code}: {r.text[:300]}")
+            content = r.json()["choices"][0]["message"].get("content") or ""
+        except httpx.HTTPError as e:
+            raise SarvamError(f"chat network error: {e}") from e
+        if not json_mode:
+            value = content.strip()
+            break
+        try:
+            value = _extract_json(content)
+            break
+        except (json.JSONDecodeError, ValueError):
+            body["messages"] = messages + [{"role": "user", "content": "Reply again with only one valid JSON object, no other text."}]
+    if value is None:
+        raise SarvamError("Model did not return valid JSON")
     if use_cache:
         cache_put(task, payload, {"value": value})
     return value

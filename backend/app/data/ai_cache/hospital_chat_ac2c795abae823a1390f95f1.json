@@ -1,0 +1,15 @@
+{
+ "value": {
+  "reply": "सुनीता जी को भर्ती होने की जानकारी देने के लिए धन्यवाद। मैं आपकी मदद के लिए यहाँ हूँ। क्या सुनीता जी को कल जो सर्जरी होनी है, वह किसी दुर्घटना के कारण हुई है, या यह पित्ताशय की बीमारी के लिए एक planned surgery है?",
+  "facts": {
+   "member_id": "m_sunita",
+   "admission_type": "planned",
+   "room_category": "single_private",
+   "room_rent_per_day": 7500,
+   "diagnosis": "पित्ताशय की बीमारी",
+   "procedure": "पित्ताशय की सर्जरी",
+   "is_accident": false
+  },
+  "ready": false
+ }
+}

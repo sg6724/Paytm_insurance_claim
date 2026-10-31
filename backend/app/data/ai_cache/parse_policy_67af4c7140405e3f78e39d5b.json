@@ -1,0 +1,185 @@
+{
+ "value": {
+  "insurer": "Suraksha General Insurance (Demo)",
+  "plan": "Family Shield Plus",
+  "policy_number": "SGI/HFS/2025/0048213",
+  "type": "family_floater",
+  "sum_insured": 500000,
+  "start_date": "2026-08-15",
+  "end_date": "2027-08-14",
+  "members": [
+   {
+    "name": "Sunita Kulkarni",
+    "relation": "self",
+    "age": 58,
+    "gender": "F",
+    "ped": [
+     "Hypertension"
+    ]
+   },
+   {
+    "name": "Rakesh Kulkarni",
+    "relation": "spouse",
+    "age": 61,
+    "gender": "M",
+    "ped": [
+     "Diabetes"
+    ]
+   }
+  ],
+  "room_rent": {
+   "type": "percent_si",
+   "value": 1,
+   "category": "general_ward"
+  },
+  "icu_rent": {
+   "type": "percent_si",
+   "value": 2
+  },
+  "copay": {
+   "percent": 10,
+   "age_threshold": null
+  },
+  "deductible": 0,
+  "consumables_cover": true,
+  "waiting": {
+   "initial_days": 30,
+   "ped_months": 36,
+   "specific_months": 24,
+   "specific_list": [
+    "cataract",
+    "hernia",
+    "joint replacement including knee replacement",
+    "kidney stones",
+    "sinusitis",
+    "piles"
+   ]
+  },
+  "sub_limits": [
+   {
+    "procedure": "cataract surgery",
+    "limit": 40000
+   }
+  ],
+  "exclusions": [
+   {
+    "keyword": "cosmetic or plastic surgery",
+    "label": "Permanent exclusions"
+   },
+   {
+    "keyword": "obesity treatment",
+    "label": "Permanent exclusions"
+   },
+   {
+    "keyword": "treatment outside India",
+    "label": "Permanent exclusions"
+   }
+  ],
+  "pre_hosp_days": 30,
+  "post_hosp_days": 60,
+  "intimation": {
+   "emergency_hours": 24,
+   "planned_hours": 48
+  },
+  "submission_days": 30,
+  "clauses": [
+   {
+    "id": "C2.1",
+    "topic": "sum_insured",
+    "title": "Sum insured",
+    "page": 2,
+    "text": "The Sum Insured of Rs. 5,00,000 is available on a floater basis for all insured members for the policy year."
+   },
+   {
+    "id": "C3.2",
+    "topic": "room_rent",
+    "title": "Room rent limit",
+    "page": 3,
+    "text": "Room, boarding and nursing expenses are payable up to 1% of the Sum Insured per day. ICU expenses up to 2% of the Sum Insured per day."
+   },
+   {
+    "id": "C5.4",
+    "topic": "sub_limits",
+    "title": "Sub-limits",
+    "page": 4,
+    "text": "Cataract surgery is payable up to Rs. 40,000 per eye per policy year."
+   },
+   {
+    "id": "C5.6",
+    "topic": "copay",
+    "title": "Co-payment",
+    "page": 4,
+    "text": "Each admissible claim is subject to a co-payment of 10%, borne by the insured person."
+   },
+   {
+    "id": "C4.1",
+    "topic": "waiting_initial",
+    "title": "Initial waiting period",
+    "page": 5,
+    "text": "Expenses for any illness contracted within 30 days from the first policy commencement date are excluded, except claims arising due to an accident."
+   },
+   {
+    "id": "C4.2",
+    "topic": "waiting_ped",
+    "title": "Pre-existing diseases",
+    "page": 5,
+    "text": "Expenses related to pre-existing diseases declared in the proposal and accepted by the Company are excluded until 36 months of continuous coverage."
+   },
+   {
+    "id": "C4.3",
+    "topic": "waiting_specific",
+    "title": "Specified disease waiting period",
+    "page": 6,
+    "text": "Expenses for the following are excluded until 24 months of continuous coverage: cataract, hernia, joint replacement including knee replacement, kidney stones, sinusitis, piles."
+   },
+   {
+    "id": "C4.6",
+    "topic": "exclusions",
+    "title": "Permanent exclusions",
+    "page": 7,
+    "text": "Cosmetic or plastic surgery, obesity treatment, treatment outside India, and other exclusions as per IRDAI standard exclusions are not covered."
+   },
+   {
+    "id": "C6.2",
+    "topic": "exclusions",
+    "title": "Non-medical items",
+    "page": 8,
+    "text": "Items listed in Annexure I (List of items for which coverage is not available, as per IRDAI) are not payable."
+   },
+   {
+    "id": "C7.1",
+    "topic": "claim_process",
+    "title": "Claim intimation and documents",
+    "page": 9,
+    "text": "Intimate the Company within 24 hours of emergency hospitalisation and at least 48 hours before planned hospitalisation. Submit reimbursement documents within 30 days of discharge."
+   }
+  ],
+  "confidence": {
+   "insurer": 0.95,
+   "plan": 0.95,
+   "policy_number": 0.95,
+   "type": 0.95,
+   "sum_insured": 0.95,
+   "start_date": 0.9,
+   "end_date": 0.9,
+   "members": 0.9,
+   "room_rent": 0.9,
+   "icu_rent": 0.9,
+   "copay": 0.9,
+   "deductible": 0.5,
+   "consumables_cover": 0.7,
+   "waiting": 0.9,
+   "sub_limits": 0.9,
+   "exclusions": 0.9,
+   "pre_hosp_days": 0.9,
+   "post_hosp_days": 0.9,
+   "intimation": 0.9,
+   "submission_days": 0.9,
+   "clauses": 0.9
+  },
+  "needs_review": [
+   "deductible",
+   "consumables_cover"
+  ]
+ }
+}
