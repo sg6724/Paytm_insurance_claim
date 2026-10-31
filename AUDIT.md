@@ -8,15 +8,17 @@ Audit date: 31 Oct 2026, finals day. Scope: the backend, the Expo app and the us
 
 | Check | Result |
 |---|---|
-| Backend unit and API tests (`pytest`) | **43 pass**, about 3 seconds, no network and no Sarvam key needed |
+| Backend unit and API tests (`pytest`) | **96 pass**, about 15 seconds, no network and no Sarvam key needed |
 | Live Sarvam run, 21 checks against real documents and real AI | **21 pass**, 2 slower than the 15 second target (see finding O2) |
+| Live Sarvam run of assistant memory | Saved, recapped in English and Hindi, continued correctly (see finding O7) |
+| Mock partners side by side across the three claims | **Pass after fixes** (see section 7) |
 | TypeScript (`tsc --noEmit`) | Clean |
 | Lint (`expo lint`) | Clean |
 | Android bundle (`expo export --platform android`) | Builds |
 | On a real phone (mic, camera, file picker, audio playback, keyboard) | **Not run** |
 | Look of the new screens (avatar, onboarding, guide, tips) | **Not looked at on a device or emulator** |
 
-### Journeys covered by the 43 tests
+### Journeys covered by the first 43 tests
 
 - First run: empty My Policies, not onboarded, consent given and withdrawn, delete my data (leaves one audit record).
 - Policy: bought on Paytm, the five-topic explainer, a junk upload is rejected cleanly.
@@ -54,6 +56,9 @@ Real PDFs and photos from `demo-docs/` were read correctly: bill, discharge summ
 | O3 | Medium | The AI cache almost never hits, because prompts include dates and ids. The PRD's "works offline-ish" is only partly met. | The hospital stay chat now works without the network. Explainers and decisions fall back to templates, but in English only. |
 | O4 | Low | Asked "tell me exactly how many rupees my insurer will pay", the assistant gave no number but offered to "calculate" one once it had details. | Reword the guardrail so it points the user to the pre-flight estimate. |
 | O5 | Low | Language coverage beyond Hindi and Marathi (22 languages) was not checked one by one. Text-to-speech covers 11. | Pick the demo language and rehearse it. |
+| O7 | Medium | The AI-written recap can misstate details. Live, it called a 66.7% payout a "66.7% deduction" and named the GRO as the next stop. The rule-based Next line under it was correct (insurer first, ₹6,000). | Treat the recap as AI text. Tighten it so it quotes no percentages. |
+| O8 | Medium | The mock insurer never answers an appeal. A sent letter is logged and unlocks the next step, but ₹6,000 is never paid back, so the story stops there. | Add a mock reply if the demo needs a win at the end. |
+| O9 | Low | The Next line in the recap is English only, and the app has not been run with saved chats on a device. | Translate it through the existing UI translation. |
 | O6 | Info | Facts still to confirm before quoting them on stage (from `CONTEXT.md`): the 30-day settlement timeline and interest rule, the Ombudsman one-year window and office email addresses, and `BANK_RATE=5.75`, which is a placeholder. | Check each against its source. |
 
 ## 4. UX changes made (first-run and redundancy)
@@ -84,4 +89,42 @@ These are not bugs for a hackathon demo. They stop this from serving real custom
 - `backend/tests/test_engine.py`: 7 tests on the rule engine and the money numbers.
 - `backend/tests/test_api.py`: 26 end-to-end journeys through the HTTP API.
 - `backend/tests/test_stay_facts.py`: 10 tests on reading Hindi, Marathi and English stay descriptions.
+- `backend/tests/test_mocks.py`: 41 tests running every mock partner across the three claims, plus misuse.
+- `backend/tests/test_memory.py`: 12 tests on saved conversations, with the model stubbed.
 - Run them with `cd backend && .venv/bin/python -m pytest -q tests`. They set their own temporary database and do not touch your data.
+
+## 7. Mock partners, side by side
+
+| Mock | Sunita (over-deducting insurer) | Arjun (fair insurer) | Rakesh (waiting period) |
+|---|---|---|---|
+| Insurer review | Under review | Under review | Under review |
+| Insurer query | Pharmacy bills, ₹12,500, answered | None | None |
+| Decision | Partial, ₹62,400 of ₹1,10,000 | Approved, ₹62,000 of ₹62,000 | Rejected, ₹0 of ₹2,76,000 |
+| Letter | Claim Settlement (Partial) | Claim Settlement | Repudiation of Claim |
+| Settlement | Paid | Paid | None |
+| Sum insured after | ₹4,37,600 of ₹5,00,000 | ₹9,38,000 of ₹10,00,000 | Unchanged |
+| NHCX bundle | Complete, references resolve | Complete, references resolve | Complete, references resolve |
+| Lender offer | ₹55,000 | ₹50,000 | None (₹0 expected) |
+| Loan repaid from settlement | Yes | Yes | Not applicable |
+| UPI and support | Both attach to the claim | Both attach to the claim | Both attach to the claim |
+
+Paytm policies: listed, added once, and an unknown id gives 404. Fetch by policy number works.
+
+### Bugs this found, all fixed
+
+| Severity | Bug | Now |
+|---|---|---|
+| **High** | The sum insured never went down after settlement, so a second claim saw full cover | Reduced at settlement, and only once |
+| **High** | The timeline said the full settlement reached the bank even when a bridge loan was repaid from it | Shows the amount paid, the loan closed and the net credited. A smaller settlement leaves a balance due |
+| **High** | Replying to a task that does not exist moved a draft to under review | 404, status unchanged |
+| **High** | A settled claim could be submitted again | 409 |
+| Medium | Every rejection letter cited the specific-disease clause, whatever the real reason | States the real reason and clause |
+| Medium | The escalation ladder was only enforced in the app, so a user could skip to the Ombudsman | Enforced on the server |
+| Medium | An unknown appeal step crashed the server, and an appeal could be drafted with no decision | 422 and 409 |
+| Medium | UPI accepted zero and negative amounts | 422 |
+| Low | The insurer query hardcoded ₹12,500 | Uses the bill's pharmacy total |
+| Low | UPI and support accepted unknown claims, and NHCX exported an empty claim | 404 and 409 |
+
+## 8. Assistant memory
+
+The assistant now keeps one thread per claim or policy between visits. Coming back shows a Where we left off card with the date, an AI recap in the chosen language, and a Next line taken from the claim's state by rules, with Continue and Start fresh. Older messages are folded into a rolling summary, so long chats stay within the prompt limit. A failed answer saves nothing. Clear chat, deleting a claim and Delete my data all remove it.

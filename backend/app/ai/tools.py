@@ -330,7 +330,8 @@ def recap_conversation(messages: list[dict], summary: str, lang: str) -> str:
             {"role": "system", "content": GUARDRAIL + " " + lang_instruction(lang)},
             {"role": "user", "content": "The customer is back. In at most 2 short sentences, addressed to them and starting with the equivalent of "
                                         "'Last time', say what you talked about and what came out of it. Do not suggest a next step. Only use facts below.\n"
-                                        f"Older notes: {summary or 'none'}\nConversation:\n{_transcript(messages[-16:])}"},
+                                        f"Older notes: {summary or 'none'}\nConversation:\n{_transcript(messages[-16:])}\n\n"
+                                        "The conversation above may be in another language; your answer must not be. " + lang_instruction(lang)},
         ], task="thread_recap", max_tokens=250)
     except SarvamError:
         asked = [m["content"] for m in messages if m["role"] == "user"]

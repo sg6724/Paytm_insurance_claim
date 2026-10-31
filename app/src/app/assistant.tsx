@@ -5,14 +5,15 @@ import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { send, upload } from '@/lib/api';
+import { fmtTime, get, send, upload } from '@/lib/api';
 import { useApp } from '@/lib/app-context';
 import { C } from '@/lib/theme';
 import { AssistantAvatar } from '@/ui/assistant-avatar';
 import { Btn, Card } from '@/ui/kit';
 import { ListenButton, MicButton } from '@/ui/voice';
 
-type Msg = { role: 'user' | 'assistant'; content: string; image?: string };
+type Msg = { role: 'user' | 'assistant'; content: string; image?: string | boolean };
+type Recap = { recap: string; next_step: string | null; last_at: string };
 
 const SUGGEST: Record<string, string[]> = {
   claim_form: ['Which documents prove my admission date?', 'Why is my room rent a problem?'],
@@ -30,8 +31,32 @@ export default function Assistant() {
   const [input, setInput] = useState('');
   const [busy, setBusy] = useState(false);
   const [ticket, setTicket] = useState<any>(null);
+  const [recap, setRecap] = useState<Recap | null>(null);
   const scroll = useRef<any>(null);
   const langName = langs.find((l) => l.code === lang)?.native ?? 'English';
+
+  const scope = [assistantCtx.claim_id && `claim_id=${assistantCtx.claim_id}`, assistantCtx.policy_id && `policy_id=${assistantCtx.policy_id}`].filter(Boolean).join('&');
+
+  // Coming back: pick up the saved conversation for this claim or policy.
+  useEffect(() => {
+    let live = true;
+    get<any>(`/assistant/thread?lang=${lang}&${scope}`)
+      .then((t) => {
+        if (!live || !t.messages.length) return;
+        setMsgs(t.messages);
+        setRecap({ recap: t.recap, next_step: t.next_step, last_at: t.last_at });
+      })
+      .catch(() => {});
+    return () => {
+      live = false;
+    };
+  }, [scope, lang]);
+
+  async function startFresh() {
+    await send(`/assistant/thread?${scope}`, undefined, 'DELETE').catch(() => {});
+    setMsgs([]);
+    setRecap(null);
+  }
 
   useEffect(() => {
     if (human) handoff();
@@ -41,13 +66,12 @@ export default function Assistant() {
   async function ask(text: string, attachmentText?: string, image?: string) {
     if (!text.trim() && !attachmentText) return;
     const shown: Msg = { role: 'user', content: text || 'Please look at this.', image };
-    const content = attachmentText ? `${text || 'Explain this to me.'}\n\nATTACHMENT (text read from the screenshot/document):\n${attachmentText}` : text;
-    const history = [...msgs.map((m) => ({ role: m.role, content: m.content })), { role: 'user', content }];
+    setRecap(null);
     setMsgs((m) => [...m, shown]);
     setInput('');
     setBusy(true);
     try {
-      const out = await send('/assistant/chat', { messages: history, lang, ...assistantCtx });
+      const out = await send('/assistant/chat', { message: shown.content, attachment: attachmentText, lang, ...assistantCtx });
       setMsgs((m) => [...m, { role: 'assistant', content: out.reply }]);
     } catch (e: any) {
       setMsgs((m) => [...m, { role: 'assistant', content: `Sorry, I couldn't answer that right now (${e.message}). You can talk to a human.` }]);
@@ -88,17 +112,22 @@ export default function Assistant() {
           <Text style={{ fontWeight: '800', fontSize: 16 }}>Claim-to-Cash assistant</Text>
           <Text style={{ color: C.sub, fontSize: 12 }}>Answers in {langName} · knows your {assistantCtx.claim_id ? 'claim' : 'policy'}</Text>
         </View>
+        {msgs.length ? (
+          <Pressable onPress={startFresh} hitSlop={10} accessibilityLabel="Clear this chat">
+            <Ionicons name="trash-outline" size={21} color={C.sub} />
+          </Pressable>
+        ) : null}
         <Pressable onPress={() => router.back()} hitSlop={10}>
           <Ionicons name="close" size={26} color={C.text} />
         </Pressable>
       </View>
       <ScrollView ref={scroll} contentContainerStyle={{ padding: 16, gap: 12 }} keyboardShouldPersistTaps="handled">
-        <View style={{ flexDirection: 'row', gap: 8, alignItems: 'flex-end', maxWidth: '94%' }}>
+        {msgs.length === 0 ? <View style={{ flexDirection: 'row', gap: 8, alignItems: 'flex-end', maxWidth: '94%' }}>
           <AssistantAvatar size={32} />
           <View style={{ flexShrink: 1, backgroundColor: C.paleBlue, borderRadius: 16, borderBottomLeftRadius: 4, padding: 12 }}>
             <Text style={{ color: C.text }}>Hi! Ask me anything about your policy or claim. You can speak, type, or share a screenshot of an insurer message or letter.</Text>
           </View>
-        </View>
+        </View> : null}
         {msgs.length === 0 ? (
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
             {suggestions.map((s) => (
@@ -120,6 +149,18 @@ export default function Assistant() {
             {m.role === 'assistant' ? <ListenButton text={m.content} /> : null}
           </View>
         ))}
+        {recap ? (
+          <Card style={{ gap: 8, backgroundColor: C.paleBlue, borderColor: '#CFE6F7' }}>
+            <Text style={{ fontWeight: '800', color: C.navy }}>Where we left off</Text>
+            <Text style={{ color: C.faint, fontSize: 11 }}>{fmtTime(recap.last_at)}</Text>
+            <Text style={{ color: C.text, lineHeight: 20 }}>{recap.recap.replace(/\*\*/g, '')}</Text>
+            {recap.next_step ? <Text style={{ color: C.text, fontWeight: '700' }}>Next: {recap.next_step}</Text> : null}
+            <View style={{ flexDirection: 'row', gap: 8 }}>
+              <Btn title="Continue" style={{ flex: 1, height: 40 }} onPress={() => ask('Let us continue from where we left off.')} />
+              <Btn title="Start fresh" kind="secondary" style={{ flex: 1, height: 40 }} onPress={startFresh} />
+            </View>
+          </Card>
+        ) : null}
         {busy ? <ActivityIndicator color={C.navy} style={{ alignSelf: 'flex-start' }} /> : null}
         {ticket ? (
           <Card style={{ gap: 6, backgroundColor: C.greenSoft, borderColor: '#BFE7D6' }}>
