@@ -7,7 +7,7 @@ import json
 import pymupdf
 
 from .. import config
-from . import sarvam
+from . import sarvam, stay_facts
 from .sarvam import SarvamError
 
 GUARDRAIL = (
@@ -202,6 +202,7 @@ def hospital_chat(policy: dict, messages: list[dict], facts: dict, lang: str) ->
     members = [{"id": m["id"], "name": m["name"], "relation": m["relation"]} for m in policy.get("members", [])]
     sys = (GUARDRAIL + "\nYou are helping a family that is in hospital right now. Collect, in a friendly conversational way, "
            "the facts needed to check the stay against the policy. Ask at most one or two short questions at a time. "
+           "Never mention internal ids, field names or date formats to the user: ask who is in hospital by name, and for dates ask in plain words. "
            "Facts: member_id (choose from MEMBERS), admission_type (emergency|planned), admission_date (YYYY-MM-DD), room_category "
            "(general_ward|twin_sharing|single_private|deluxe|icu), room_rent_per_day (number, rupees), expected_days (number), "
            "diagnosis and procedure (always written in English medical terms, e.g. 'cholelithiasis', 'laparoscopic cholecystectomy', 'knee replacement'), is_accident (bool), estimated_bill (number, optional), claim_type (cashless|reimbursement). "
@@ -213,8 +214,12 @@ def hospital_chat(policy: dict, messages: list[dict], facts: dict, lang: str) ->
     out = sarvam.chat(msgs, json_mode=True, task="hospital_chat", use_cache=True, max_tokens=800)
     merged = dict(facts)
     merged.update({k: v for k, v in (out.get("facts") or {}).items() if k in FACT_KEYS and v not in (None, "")})
+    # The model sometimes returns no facts. Fill the gaps from the user's own words; never override what is already known.
+    said = " ".join(m["content"] for m in messages if m.get("role") == "user")
+    for k, v in stay_facts.extract(said, policy).items():
+        merged.setdefault(k, v)
     enough = bool(merged.get("member_id") and (merged.get("room_rent_per_day") or merged.get("room_category")) and (merged.get("diagnosis") or merged.get("procedure")))
-    return {"reply": out.get("reply", ""), "facts": merged, "ready": bool(out.get("ready")) or enough}
+    return {"reply": out.get("reply", ""), "facts": merged, "ready": bool(out.get("ready")) or enough, "forced": enough and not out.get("ready")}
 
 
 def summarise_check(policy: dict, check: dict, lang: str) -> str:

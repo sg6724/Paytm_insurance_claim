@@ -92,6 +92,7 @@ class ProfilePatch(BaseModel):
     pincode: str | None = None
     mobile: str | None = None
     email: str | None = None
+    tips_seen: list[str] | None = None
 
 
 @app.patch("/profile")
@@ -231,6 +232,8 @@ async def upload_policy(file: UploadFile = File(...)):
         "confidence": parsed.get("confidence") or {}, "needs_review": parsed.get("needs_review") or [],
     }
     p["remaining_si"] = p["sum_insured"]
+    if len(p["needs_review"]) >= POLICY_REVIEW_FIELDS or not p["sum_insured"]:
+        p["review_ticket"] = flag_for_review("Low-confidence policy read", f"{file.filename}: {len(p['needs_review'])} fields uncertain" + ("; sum insured not found" if not p["sum_insured"] else ""), None, pid)["id"]
     store.put("policy", p)
     store.audit("ai", "policy_parsed", f"Read {file.filename} and extracted {len(p['clauses'])} clauses; {len(p['needs_review'])} fields need your check", pid)
     return p
@@ -314,6 +317,8 @@ def hospital_chat(body: HospitalChatIn):
     if out["ready"]:
         out["check"] = engine.hospital_check(p, {k: (float(v) if k in ("room_rent_per_day", "expected_days", "estimated_bill") and v not in (None, "") else v)
                                                  for k, v in out["facts"].items()})
+        if out.pop("forced", False):  # the model was still asking questions, but we already know enough: lead with the result
+            out["reply"] = tools.summarise_check(p, out["check"], body.lang)
         store.audit("ai", "hospital_chat", "Collected stay details by conversation and ran the policy check", p["id"], {"facts": out["facts"]})
     return out
 
@@ -397,6 +402,8 @@ async def upload_document(cid: str, file: UploadFile = File(...)):
         fields, error = {"doc_type": "other", "confidence": 0, "summary": "We couldn't read this file automatically."}, str(e)
     d = {"id": did, "claim_id": cid, "filename": file.filename, "mime": mime, "url": f"/files/{path.name}",
          "doc_type": fields.get("doc_type", "other"), "fields": fields, "confidence": fields.get("confidence", 0), "error": error}
+    if error or float(d["confidence"] or 0) < REVIEW_BELOW:
+        d["review_ticket"] = flag_for_review("Low-confidence document read", f"{file.filename} was read at {int(float(d['confidence'] or 0) * 100)}% confidence", cid, did)["id"]
     store.put("document", d)
     store.audit("ai", "document_read", f"Read {file.filename}: {d['doc_type'].replace('_', ' ')} ({int(float(d['confidence'] or 0) * 100)}% confidence)", cid)
     if c["status"] == "draft":
@@ -446,6 +453,17 @@ def set_fill_mode(cid: str, body: FillModeIn):
 
 class FormIn(BaseModel):
     form: dict
+
+
+@app.get("/claims/{cid}/form.pdf")
+def form_pdf(cid: str):
+    """The claim form as a PDF, built from the saved form."""
+    from fastapi import Response
+    from . import formpdf
+    c = must("claim", cid)
+    p = must("policy", c["policy_id"])
+    store.audit("you", "form_exported", "Exported the claim form as PDF", cid)
+    return Response(formpdf.build(c, p), media_type="application/pdf", headers={"Content-Disposition": f'inline; filename="claim-form-{cid}.pdf"'})
 
 
 @app.post("/claims/{cid}/validate")
@@ -531,7 +549,11 @@ def decision(cid: str, lang: str = "en-IN"):
     analysis = C.analyse_decision(c, p)
     text = tools.explain_decision(p, c, analysis, lang)
     store.audit("ai", "decision_explained", f"Explained the insurer's decision in {config.LANG_NAME.get(lang, lang)}", cid)
-    return {"decision": c["decision"], "analysis": analysis, "explanation": text, "ladder": C.ladder(c), "lang": lang}
+    unexplained = analysis["strength"] == "none" and abs((c["decision"].get("amount_approved") or 0) - analysis["expected_payable"]) > 1
+    if unexplained and not c.get("explain_review_ticket"):
+        c["explain_review_ticket"] = flag_for_review("Decision we could not fully explain", "The insurer's amount differs from the rule engine and no cause was found", cid)["id"]
+        store.put("claim", c)
+    return {"decision": c["decision"], "analysis": analysis, "explanation": text, "ladder": C.ladder(c), "lang": lang, "review_ticket": c.get("explain_review_ticket")}
 
 
 class AppealIn(BaseModel):
@@ -597,9 +619,17 @@ def bridge(cid: str):
     return offer
 
 
+class BridgeAcceptIn(BaseModel):
+    consent: bool = False  # explicit consent to share claim status with the lender (RBI Digital Lending Directions)
+
+
 @app.post("/claims/{cid}/bridge/accept")
-def bridge_accept(cid: str):
+def bridge_accept(cid: str, body: BridgeAcceptIn):
+    if not body.consent:
+        raise HTTPException(422, "Please confirm you have read the Key Facts and agree to share your claim status with the lender.")
     c = must("claim", cid)
+    if c.get("bridge"):
+        raise HTTPException(409, "You already have a loan on this claim.")
     p = must("policy", c["policy_id"])
     offer = C.bridge_offer(c, p)
     if not offer:
@@ -712,6 +742,19 @@ def assistant_tts_wav(text: str, lang: str = "hi-IN"):
     return Response(base64.b64decode(out["audio_base64"]), media_type="audio/wav")
 
 
+REVIEW_BELOW = 0.6  # extraction confidence under this goes to a person
+POLICY_REVIEW_FIELDS = 6  # a clean policy read still leaves a few uncertain fields (5 in testing); this many means the read is poor
+
+
+def flag_for_review(topic: str, reason: str, claim_id: str | None = None, ref: str | None = None) -> dict:
+    """Low-confidence AI output is never left to the user alone: open a human-review ticket and log it."""
+    t = {"id": store.new_id("tkt"), "topic": topic, "messages": [], "claim_id": claim_id, "status": "open", "auto": True,
+         "reason": reason, "ref": ref, "eta": "A claims expert will check this and call you within 2 hours (mock)."}
+    store.put("ticket", t)
+    store.audit("ai", "human_review_flagged", reason, claim_id or ref)
+    return t
+
+
 class TicketIn(BaseModel):
     topic: str
     messages: list[dict] = []
@@ -741,6 +784,36 @@ def sample_policy(key: str):
     if not s:
         raise HTTPException(404, "Unknown sample")
     return _add_policy(SAMPLE_BY_ID[s["policy_id"]], "sample")
+
+
+@app.post("/mock/abha/fetch/{cid}")
+def abha_fetch(cid: str):
+    """Mock ABHA record fetch: clinical records only (discharge summary, prescriptions, lab reports). Bills and bank papers are not in ABHA."""
+    c = must("claim", cid)
+    key = next((k for k, v in SAMPLE_CLAIMS.items() if v["member_id"] == c["member_id"] and v["policy_id"] == c["policy_id"]), None)
+    if not key:
+        raise HTTPException(404, "No health records are linked to this ABHA address yet (demo). Upload the papers instead.")
+    s = SAMPLE_CLAIMS[key]
+    p = must("policy", c["policy_id"])
+    member = next(m for m in p["members"] if m["id"] == s["member_id"])
+    common = {"patient_name": member["name"], "hospital": s["hospital"], "admission_date": s["admission_date"], "discharge_date": s["discharge_date"]}
+    have = {d["doc_type"] for d in store.find("document", claim_id=cid)}
+    docs = [
+        ("discharge_summary", "ABHA_Discharge_summary.pdf", {**common, "diagnosis": s["diagnosis"], "procedure": s["procedure"], "room_category": s["room_category"],
+                                                           "summary": f"Discharge summary for {member['name']}: {s['diagnosis']}, {s['procedure']}."}),
+        ("prescription", "ABHA_Prescriptions.pdf", {**common, "summary": "Prescriptions from your ABHA records."}),
+        ("investigation_report", "ABHA_Lab_reports.pdf", {**common, "summary": "Lab and imaging reports from your ABHA records."}),
+    ]
+    added = []
+    for dt, fn, fields in docs:
+        if dt in have:
+            continue
+        d = {"id": store.new_id("doc"), "claim_id": cid, "filename": fn, "mime": "application/pdf", "url": None, "source": "ABHA",
+             "doc_type": dt, "fields": {"doc_type": dt, "confidence": 0.95, **fields}, "confidence": 0.95}
+        store.put("document", d)
+        added.append(fn)
+    store.audit("you", "abha_fetch", f"Fetched {len(added)} records from ABHA with your consent (mock)", cid)
+    return {"added": added, "message": f"Fetched {len(added)} records from your ABHA." if added else "Everything in your ABHA is already attached."}
 
 
 @app.post("/samples/{key}/documents/{cid}")
