@@ -7,6 +7,8 @@ BASE = Path(__file__).resolve().parent.parent
 load_dotenv(BASE / ".env")
 
 DATABASE_URL = os.getenv("DATABASE_URL", "").strip()
+RESEND_API_KEY = os.getenv("RESEND_API_KEY", "").strip()
+MAIL_FROM = os.getenv("MAIL_FROM", "Claimezy <onboarding@resend.dev>").strip()
 DB_PATH = os.getenv("DB_PATH", str(BASE / "storage" / "claim_to_cash.db"))
 # Serverless functions can only write to /tmp.
 UPLOAD_DIR = Path(os.getenv("UPLOAD_DIR", "/tmp/claimezy_uploads" if os.getenv("VERCEL") else str(BASE / "storage" / "uploads")))

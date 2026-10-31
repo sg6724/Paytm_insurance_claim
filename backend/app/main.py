@@ -44,6 +44,11 @@ def ensure_profile(name: str = "", email: str = ""):
 
 # ---------------- meta, profile, trust ----------------
 
+@app.get("/")
+def root():
+    return {"service": "Claimezy API", "ok": True}
+
+
 class SignupIn(BaseModel):
     email: str
     password: str
@@ -69,6 +74,40 @@ def signup(body: SignupIn):
 @app.post("/auth/login")
 def login(body: LoginIn):
     return _session(auth.login(body.email, body.password))
+
+
+class ForgotIn(BaseModel):
+    email: str
+
+
+class ResetIn(BaseModel):
+    email: str
+    code: str
+    password: str
+
+
+class ChangePasswordIn(BaseModel):
+    current_password: str
+    new_password: str
+
+
+@app.post("/auth/forgot-password")
+def forgot_password(body: ForgotIn):
+    auth.forgot_password(body.email)
+    return {"ok": True, "message": "If that email has an account, a code is on its way."}
+
+
+@app.post("/auth/reset-password")
+def reset_password(body: ResetIn):
+    auth.reset_password(body.email, body.code, body.password)
+    return {"ok": True}
+
+
+@app.post("/auth/change-password")
+def change_password(body: ChangePasswordIn, authorization: str = Header("")):
+    auth.change_password(get_profile().get("email", ""), body.current_password, body.new_password, authorization[7:].strip())
+    store.audit("you", "password_changed", "Changed the account password")
+    return {"ok": True}
 
 
 @app.post("/auth/logout")

@@ -10,12 +10,15 @@ from datetime import datetime, timedelta, timezone
 
 from fastapi import HTTPException, Request
 
-from . import store
+from . import mailer, store
 
 SESSION_DAYS = 30
 MAX_FAILS = 5
 LOCK_MINUTES = 15
-PUBLIC = {"/health", "/languages", "/auth/signup", "/auth/login"}
+RESET_MINUTES = 15
+RESET_TRIES = 5
+RESET_GAP_SECONDS = 60
+PUBLIC = {"/", "/health", "/languages", "/auth/signup", "/auth/login", "/auth/forgot-password", "/auth/reset-password"}
 MEDIA = re.compile(r"^(/assistant/tts\.wav|/claims/[^/]+/form\.pdf)$")  # opened by a player or browser, which can't send a header
 EMAIL = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 
@@ -42,12 +45,22 @@ def new_session(user_id: str) -> str:
     return token
 
 
+def _check_password(password: str) -> None:
+    if len(password) < 8:
+        raise HTTPException(422, "Use at least 8 characters for your password.")
+
+
+def _set_password(a: dict, password: str) -> None:
+    salt = secrets.token_bytes(16)
+    a.update(salt=salt.hex(), hash=_hash(password, salt).hex(), fails=0, locked_until=None)
+    store.put("account", a, user=store.SYSTEM)
+
+
 def signup(email: str, password: str, name: str) -> dict:
     key = _key(email)
     if not EMAIL.match(key):
         raise HTTPException(422, "Enter a valid email address.")
-    if len(password) < 8:
-        raise HTTPException(422, "Use at least 8 characters for your password.")
+    _check_password(password)
     if not name.strip():
         raise HTTPException(422, "Enter your name.")
     if store.get("account", key, user=store.SYSTEM):
@@ -76,6 +89,60 @@ def login(email: str, password: str) -> dict:
         a.update(fails=0, locked_until=None)
         store.put("account", a, user=store.SYSTEM)
     return a
+
+
+def _code_hash(email: str, code: str) -> str:
+    return hashlib.sha256(f"{email}:{code}".encode()).hexdigest()
+
+
+def forgot_password(email: str) -> None:
+    """Emails a 6-digit code. Answers the same whether or not the account exists, so it can't reveal who has one."""
+    if not mailer.available():
+        raise HTTPException(503, "Password reset by email isn't available right now.")
+    key = _key(email)
+    a = store.get("account", key, user=store.SYSTEM)
+    if not a:
+        return
+    old = store.get("reset", key, user=store.SYSTEM)
+    if old and datetime.fromisoformat(old["sent"]) > _utcnow() - timedelta(seconds=RESET_GAP_SECONDS):
+        return  # one email a minute, so nobody can flood an inbox
+    code = f"{secrets.randbelow(1_000_000):06d}"
+    store.put("reset", {"id": key, "code": _code_hash(key, code), "sent": _utcnow().isoformat(), "expires": (_utcnow() + timedelta(minutes=RESET_MINUTES)).isoformat(), "tries": 0}, user=store.SYSTEM)
+    try:
+        mailer.send(key, "Your Claimezy password reset code",
+                    f"Your code is {code}. It works for {RESET_MINUTES} minutes.\n\nIf you did not ask for this, ignore this email. Your password has not changed.")
+    except mailer.MailError as e:
+        store.delete("reset", key, user=store.SYSTEM)
+        raise HTTPException(503, "We couldn't send the email. Try again in a few minutes.") from e
+
+
+def reset_password(email: str, code: str, password: str) -> None:
+    _check_password(password)
+    key = _key(email)
+    wrong = HTTPException(400, "That code is wrong or has expired. Ask for a new one.")
+    r = store.get("reset", key, user=store.SYSTEM)
+    a = store.get("account", key, user=store.SYSTEM)
+    if not r or not a or datetime.fromisoformat(r["expires"]) < _utcnow():
+        raise wrong
+    if not hmac.compare_digest(r["code"], _code_hash(key, code.strip())):
+        r["tries"] += 1
+        if r["tries"] >= RESET_TRIES:
+            store.delete("reset", key, user=store.SYSTEM)
+        else:
+            store.put("reset", r, user=store.SYSTEM)
+        raise wrong
+    _set_password(a, password)
+    store.delete("reset", key, user=store.SYSTEM)
+    store.delete_sessions(a["user_id"])  # whoever had the old password is signed out
+
+
+def change_password(email: str, current: str, new: str, token: str) -> None:
+    _check_password(new)
+    a = store.get("account", _key(email), user=store.SYSTEM)
+    if not a or not hmac.compare_digest(_hash(current, bytes.fromhex(a["salt"])).hex(), a["hash"]):
+        raise HTTPException(400, "Your current password is wrong.")
+    _set_password(a, new)
+    store.delete_sessions(a["user_id"], keep=_token_id(token))
 
 
 def logout(token: str) -> None:

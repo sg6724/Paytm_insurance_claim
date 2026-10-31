@@ -5,7 +5,7 @@ import tempfile
 import uuid
 
 _tmp = tempfile.mkdtemp(prefix="c2c_test_")
-os.environ.update(SARVAM_API_KEY="", DATABASE_URL="", DB_PATH=f"{_tmp}/test.db", UPLOAD_DIR=f"{_tmp}/uploads", AI_CACHE_DIR=f"{_tmp}/cache")
+os.environ.update(SARVAM_API_KEY="", DATABASE_URL="", RESEND_API_KEY="", DB_PATH=f"{_tmp}/test.db", UPLOAD_DIR=f"{_tmp}/uploads", AI_CACHE_DIR=f"{_tmp}/cache")
 
 import pytest  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402

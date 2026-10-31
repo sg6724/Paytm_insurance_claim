@@ -117,6 +117,14 @@ def delete(kind: str, id: str, user: str | None = None) -> None:
     _run("DELETE FROM user_docs WHERE user_id=? AND kind=? AND id=?", (user or current_user(), kind, id))
 
 
+def delete_sessions(user_id: str, keep: str | None = None) -> None:
+    """Sign a user out everywhere, optionally except one session."""
+    rows = _run("SELECT id, data FROM user_docs WHERE user_id=? AND kind='session'", (SYSTEM,), fetch=True)
+    for sid, data in rows:
+        if sid != keep and json.loads(data).get("user_id") == user_id:
+            delete("session", sid, user=SYSTEM)
+
+
 def wipe() -> None:
     """Everything belonging to the signed-in user. Their account stays."""
     _run("DELETE FROM user_docs WHERE user_id=?", (current_user(),))
