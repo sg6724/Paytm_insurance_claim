@@ -4,14 +4,19 @@ import { ActivityIndicator, Pressable, Text, View } from 'react-native';
 
 import { useApp } from '@/lib/app-context';
 import { C } from '@/lib/theme';
-import { Card, Header, Screen } from '@/ui/kit';
+import { Btn, Card, Header, Screen } from '@/ui/kit';
 
 export default function Settings() {
-  const { langs, lang, setLang, translating } = useApp();
+  const { user, signOut, langs, lang, setLang, translating } = useApp();
   return (
     <View style={{ flex: 1 }}>
-      <Header title="Language" />
+      <Header title="Account and language" />
       <Screen>
+        <Card style={{ gap: 4 }}>
+          <Text style={{ fontWeight: '700', fontSize: 16, color: C.text }}>{user?.name}</Text>
+          <Text style={{ color: C.sub }}>{user?.email}</Text>
+          <Btn title="Sign out" kind="ghost" icon="log-out-outline" style={{ marginTop: 10, height: 42 }} onPress={signOut} />
+        </Card>
         <Text style={{ color: C.sub }}>Explanations, letters and the assistant use this language. Voice playback is available for languages marked with a speaker.</Text>
         {translating ? (
           <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}>

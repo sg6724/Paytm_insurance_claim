@@ -64,7 +64,7 @@ function AskFab() {
     }),
   );
 
-  const hidden = path === '/' || path.startsWith('/assistant') || path.startsWith('/onboarding');
+  const hidden = path === '/' || path.startsWith('/assistant') || path.startsWith('/onboarding') || path.startsWith('/login');
   if (hidden) return null;
   return (
     <Animated.View
@@ -86,15 +86,25 @@ function OfflineBanner() {
   if (online !== false) return null;
   return (
     <View style={{ position: 'absolute', top: insets.top, left: 0, right: 0, backgroundColor: C.red, padding: 8 }}>
-      <Text style={{ color: '#fff', textAlign: 'center', fontSize: 12 }}>{`Can't reach the Claimezy server at ${API_BASE}. Is the laptop on the same hotspot?`}</Text>
+      <Text style={{ color: '#fff', textAlign: 'center', fontSize: 12 }}>{`Can't reach the Claimezy server at ${API_BASE}. Check your internet connection.`}</Text>
     </View>
   );
 }
 
-export default function RootLayout() {
+/** Nobody gets past the sign-in screen without an account. The splash stays up until we know which screen to show. */
+function AuthGate() {
+  const { user, authReady } = useApp();
+  const path = usePathname();
   useEffect(() => {
+    if (!authReady) return;
+    if (!user && path !== '/login') router.replace('/login');
+    else if (user && path === '/login') router.replace('/');
     SplashScreen.hideAsync();
-  }, []);
+  }, [user, authReady, path]);
+  return null;
+}
+
+export default function RootLayout() {
   return (
     <SafeAreaProvider>
       <AppProvider>
@@ -103,6 +113,7 @@ export default function RootLayout() {
           <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: C.bg }, animation: 'slide_from_right' }}>
             <Stack.Screen name="assistant" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
           </Stack>
+          <AuthGate />
           <AskFab />
           <OfflineBanner />
         </View>

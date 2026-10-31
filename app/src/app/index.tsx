@@ -63,14 +63,15 @@ const CHIPS: { icon: IconName; label: string; color: string }[] = [
 /** Paytm home as it looks today. Claimezy is reached the way users would find it: the Health Insurance tile under Financial Services. */
 export default function Home() {
   const insets = useSafeAreaInsets();
-  const { t } = useApp();
+  const { t, user } = useApp();
+  const initials = (user?.name ?? '').split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0].toUpperCase()).join('');
   const goInsurance = () => router.push('/insurance');
   return (
     <View style={{ flex: 1, backgroundColor: st.page.backgroundColor }}>
       <ScrollView contentContainerStyle={{ paddingTop: insets.top + 10, paddingHorizontal: 12, paddingBottom: 110, gap: 12 }} showsVerticalScrollIndicator={false}>
         <View style={st.top}>
           <Pressable style={st.avatar} onPress={() => router.push('/settings')} accessibilityLabel="Profile and language">
-            <Text style={{ color: '#2E7D74', fontSize: 14 }}>JO</Text>
+            <Text style={{ color: '#2E7D74', fontSize: 14 }}>{initials}</Text>
           </Pressable>
           <View style={{ flex: 1, marginLeft: 8 }}>
             <Text style={st.logoTop}>GOLDEN</Text>

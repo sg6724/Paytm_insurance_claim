@@ -6,12 +6,13 @@ import copy
 import mimetypes
 from datetime import date
 
-from fastapi import FastAPI, File, Form, HTTPException, UploadFile
+from fastapi import Depends, FastAPI, File, Form, Header, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from . import assistant_memory as memory
+from . import auth
 from . import claims as C
 from . import config, store
 from .ai import sarvam, tools
@@ -20,9 +21,8 @@ from .data.ombudsman import find_office
 from .data.samples import PAYTM_POLICIES, SAMPLE_CLAIMS, SAMPLE_POLICIES
 from .rules import engine
 
-app = FastAPI(title="Claimezy API", version="1.0")
+app = FastAPI(title="Claimezy API", version="1.0", dependencies=[Depends(auth.require_user)])
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
-app.mount("/files", StaticFiles(directory=str(config.UPLOAD_DIR)), name="files")
 DEMO_DOCS = config.BASE.parent / "demo-docs"
 if DEMO_DOCS.exists():
     app.mount("/demo-docs", StaticFiles(directory=str(DEMO_DOCS), html=True), name="demo-docs")
@@ -37,19 +37,51 @@ def must(kind, id):
     return obj
 
 
-def ensure_profile():
+def ensure_profile(name: str = "", email: str = ""):
     if not store.get("profile", "me"):
-        store.put("profile", {"id": "me", "name": "Sunita Kulkarni", "mobile": "9820012345", "email": "sunita.k@example.com",
-                              "pincode": "400069", "language": "en-IN", "onboarded": False})
-
-
-@app.on_event("startup")
-def startup():
-    store.conn()
-    ensure_profile()
+        store.put("profile", {"id": "me", "name": name, "mobile": "", "email": email, "pincode": "", "language": "en-IN", "onboarded": False})
 
 
 # ---------------- meta, profile, trust ----------------
+
+class SignupIn(BaseModel):
+    email: str
+    password: str
+    name: str
+
+
+class LoginIn(BaseModel):
+    email: str
+    password: str
+
+
+def _session(account: dict) -> dict:
+    store.set_user(account["user_id"])
+    ensure_profile(account["name"], account["id"])
+    return {"token": auth.new_session(account["user_id"]), "user": {"email": account["id"], "name": account["name"]}}
+
+
+@app.post("/auth/signup")
+def signup(body: SignupIn):
+    return _session(auth.signup(body.email, body.password, body.name))
+
+
+@app.post("/auth/login")
+def login(body: LoginIn):
+    return _session(auth.login(body.email, body.password))
+
+
+@app.post("/auth/logout")
+def logout(authorization: str = Header("")):
+    auth.logout(authorization[7:].strip())
+    return {"ok": True}
+
+
+@app.get("/auth/me")
+def me():
+    p = get_profile()
+    return {"email": p.get("email"), "name": p.get("name")}
+
 
 @app.get("/health")
 def health():
@@ -144,16 +176,18 @@ def audit():
 
 @app.delete("/me/data")
 def delete_my_data():
+    who = get_profile()
     store.wipe()
-    ensure_profile()
+    ensure_profile(who.get("name", ""), who.get("email", ""))
     store.audit("you", "data_deleted", "All policies, claims, documents and chats deleted")
     return {"ok": True}
 
 
 @app.post("/demo/reset")
 def demo_reset():
+    who = get_profile()
     store.wipe()
-    ensure_profile()
+    ensure_profile(who.get("name", ""), who.get("email", ""))
     return {"ok": True}
 
 
@@ -407,7 +441,7 @@ async def upload_document(cid: str, file: UploadFile = File(...)):
         error = None
     except Exception as e:
         fields, error = {"doc_type": "other", "confidence": 0, "summary": "We couldn't read this file automatically."}, str(e)
-    d = {"id": did, "claim_id": cid, "filename": file.filename, "mime": mime, "url": f"/files/{path.name}",
+    d = {"id": did, "claim_id": cid, "filename": file.filename, "mime": mime, "url": None,
          "doc_type": fields.get("doc_type", "other"), "fields": fields, "confidence": fields.get("confidence", 0), "error": error}
     if error or float(d["confidence"] or 0) < REVIEW_BELOW:
         d["review_ticket"] = flag_for_review("Low-confidence document read", f"{file.filename} was read at {int(float(d['confidence'] or 0) * 100)}% confidence", cid, did)["id"]

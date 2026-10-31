@@ -6,8 +6,10 @@ from dotenv import load_dotenv
 BASE = Path(__file__).resolve().parent.parent
 load_dotenv(BASE / ".env")
 
+DATABASE_URL = os.getenv("DATABASE_URL", "").strip()
 DB_PATH = os.getenv("DB_PATH", str(BASE / "storage" / "claim_to_cash.db"))
-UPLOAD_DIR = Path(os.getenv("UPLOAD_DIR", str(BASE / "storage" / "uploads")))
+# Serverless functions can only write to /tmp.
+UPLOAD_DIR = Path(os.getenv("UPLOAD_DIR", "/tmp/claimezy_uploads" if os.getenv("VERCEL") else str(BASE / "storage" / "uploads")))
 AI_CACHE_DIR = Path(os.getenv("AI_CACHE_DIR", str(BASE / "app" / "data" / "ai_cache")))
 
 SARVAM_API_KEY = os.getenv("SARVAM_API_KEY", "").strip()
@@ -40,7 +42,10 @@ SARVAM_TTS_VOICES = {
 BANK_RATE = float(os.getenv("BANK_RATE", "5.75"))
 
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
-AI_CACHE_DIR.mkdir(parents=True, exist_ok=True)
+try:
+    AI_CACHE_DIR.mkdir(parents=True, exist_ok=True)
+except OSError:
+    pass  # read-only deployment: the committed cache is still readable
 
 # Languages: Sarvam LLM / translation cover 22 Indian languages + English; Bulbul TTS covers 11.
 LANGUAGES = [

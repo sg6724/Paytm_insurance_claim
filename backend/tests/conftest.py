@@ -2,20 +2,24 @@
 
 import os
 import tempfile
+import uuid
 
 _tmp = tempfile.mkdtemp(prefix="c2c_test_")
-os.environ.update(SARVAM_API_KEY="", DB_PATH=f"{_tmp}/test.db", UPLOAD_DIR=f"{_tmp}/uploads", AI_CACHE_DIR=f"{_tmp}/cache")
+os.environ.update(SARVAM_API_KEY="", DATABASE_URL="", DB_PATH=f"{_tmp}/test.db", UPLOAD_DIR=f"{_tmp}/uploads", AI_CACHE_DIR=f"{_tmp}/cache")
 
 import pytest  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402
 
+from app import store  # noqa: E402
 from app.main import app  # noqa: E402
 
 
 @pytest.fixture()
 def api():
     with TestClient(app) as c:
-        c.post("/demo/reset")
+        out = c.post("/auth/signup", json={"email": f"{uuid.uuid4().hex}@test.in", "password": "testing-123", "name": "Test User"}).json()
+        c.headers["Authorization"] = f"Bearer {out['token']}"
+        store.set_user(store.get("account", out["user"]["email"], user=store.SYSTEM)["user_id"])  # for tests that read the store directly
         yield c
 
 

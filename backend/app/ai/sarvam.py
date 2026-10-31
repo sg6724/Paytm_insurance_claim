@@ -47,7 +47,10 @@ def cache_get(task: str, payload):
 
 def cache_put(task: str, payload, value):
     p = config.AI_CACHE_DIR / f"{_cache_key(task, payload)}.json"
-    p.write_text(json.dumps(value, ensure_ascii=False, indent=1))
+    try:
+        p.write_text(json.dumps(value, ensure_ascii=False, indent=1))
+    except OSError:
+        pass  # read-only deployment: skip the disk cache
     return value
 
 

@@ -1,0 +1,3 @@
+-r requirements.txt
+pytest
+fhir.resources  # tests: checks the NHCX claim pack is valid FHIR R4

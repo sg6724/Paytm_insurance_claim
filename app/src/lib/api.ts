@@ -12,6 +12,22 @@ function resolveBase(): string {
 
 export const API_BASE = resolveBase();
 
+let authToken: string | null = null;
+let onSessionEnded: (() => void) | null = null;
+
+export function setAuthToken(token: string | null) {
+  authToken = token;
+}
+
+export function setSessionEndedHandler(fn: () => void) {
+  onSessionEnded = fn;
+}
+
+const authHeaders = (): Record<string, string> => (authToken ? { Authorization: `Bearer ${authToken}` } : {});
+
+/** For URLs opened by a player or the browser, which can't send a header. */
+export const withToken = (url: string) => (authToken ? `${url}${url.includes('?') ? '&' : '?'}access_token=${encodeURIComponent(authToken)}` : url);
+
 export class ApiError extends Error {
   status: number;
   body: any;
@@ -31,19 +47,20 @@ async function handle<T>(r: Response): Promise<T> {
   } catch {
     body = { detail: text };
   }
+  if (r.status === 401 && authToken) onSessionEnded?.(); // expired or signed out elsewhere; a wrong password has no token yet
   if (!r.ok) throw new ApiError(r.status, body);
   return body as T;
 }
 
 export async function get<T = any>(path: string): Promise<T> {
-  return handle<T>(await fetch(API_BASE + path));
+  return handle<T>(await fetch(API_BASE + path, { headers: authHeaders() }));
 }
 
 export async function send<T = any>(path: string, body?: any, method = 'POST'): Promise<T> {
   return handle<T>(
     await fetch(API_BASE + path, {
       method,
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...authHeaders() },
       body: body === undefined ? undefined : JSON.stringify(body),
     }),
   );
@@ -61,7 +78,7 @@ export async function upload<T = any>(path: string, file: Picked, extra: Record<
   console.log('[upload] start', path, { uri: file.uri, name: file.name, type: file.type, useRnFetch: process.env.EXPO_PUBLIC_USE_RN_FETCH, fetchImpl });
   let r: Response;
   try {
-    r = await fetch(API_BASE + path, { method: 'POST', body: fd });
+    r = await fetch(API_BASE + path, { method: 'POST', body: fd, headers: authHeaders() });
   } catch (e: any) {
     console.log('[upload] failed', path, e?.message, String(e?.stack ?? '').slice(0, 400));
     throw new ApiError(0, { detail: `Upload failed: ${e?.message ?? 'unknown error'} (server ${API_BASE})` });
@@ -71,7 +88,7 @@ export async function upload<T = any>(path: string, file: Picked, extra: Record<
 }
 
 export const ttsUrl = (text: string, lang: string) =>
-  `${API_BASE}/assistant/tts.wav?lang=${encodeURIComponent(lang)}&text=${encodeURIComponent(text.slice(0, 1500))}`;
+  withToken(`${API_BASE}/assistant/tts.wav?lang=${encodeURIComponent(lang)}&text=${encodeURIComponent(text.slice(0, 1500))}`);
 
 /** Split text for speech into sentence chunks, so playback can start after the first one is ready. */
 export function speechChunks(text: string, max = 260): string[] {

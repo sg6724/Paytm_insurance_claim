@@ -1,8 +1,7 @@
 fastapi
-uvicorn[standard]
+uvicorn
 httpx
 python-multipart
 pymupdf
 python-dotenv
-pytest
-fhir.resources  # tests: checks the NHCX claim pack is valid FHIR R4
+pg8000
