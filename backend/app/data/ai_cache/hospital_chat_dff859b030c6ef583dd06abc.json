@@ -1,9 +1,0 @@
-{
- "value": {
-  "reply": "Hi! I'm here to help you with your health insurance claim. I can hear you're in a hospital right now, and I'm sorry you're dealing with this. Let's get the details sorted so we can check your policy. First, who is in the hospital? Is it you, Meera, or Anil?",
-  "facts": {
-   "claim_type": "cashless"
-  },
-  "ready": false
- }
-}

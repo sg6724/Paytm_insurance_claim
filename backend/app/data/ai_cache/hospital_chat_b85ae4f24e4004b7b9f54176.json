@@ -1,9 +1,0 @@
-{
- "value": {
-  "reply": "I'm sorry to hear you're in the hospital. I'm here to help you with your claim. To get started, could you please tell me your name?",
-  "facts": {
-   "claim_type": "cashless"
-  },
-  "ready": false
- }
-}

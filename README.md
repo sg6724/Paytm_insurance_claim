@@ -1,98 +1,98 @@
 # Claimezy
 
-Paytm Build for India AI Hackathon, Grand Finals, Track 2 (AI-Powered Financial Journeys). Team Twisted Minds.
+Health insurance claims assistant built for the Paytm Build for India AI Hackathon, Track 2. Team Twisted Minds: Jainam Oswal and Samriddhi Gupta.
 
-Claimezy lives inside Paytm's Health Insurance section and takes a policyholder from "I'm in hospital" to "money in my account": it explains the policy in any Indian language, checks the hospital stay before discharge (by chat, voice, form or bill photo), fills the claim form from documents (or checks the user's own entries live), estimates the payout in rupees, tracks the claim, explains deductions and rejections, drafts appeals up to the Ombudsman, and offers a lender-decided bridge loan.
+Paytm explains insurance claims before you buy a policy, but offers little help once you need to claim. Claimezy covers that gap, from hospital admission to the money reaching your account:
 
-**AI explains, rules decide.** Every rupee figure comes from a tested rule engine (`backend/app/rules/engine.py`). Sarvam AI reads documents, talks to the user and explains results.
+- Explains your policy in plain language, in Indian languages, by text or voice
+- Checks your hospital stay before discharge and shows likely deductions
+- Reads your bills and fills the claim form, or checks the form as you fill it in
+- Estimates your payout, line by line
+- Tracks the claim, explains the insurer's decision, and drafts appeals
+- Offers a bridge loan from a lending partner while you wait
 
-See [PRD.md](PRD.md) for the full product spec.
+Payout amounts come from a rule engine with unit tests (`backend/app/rules/engine.py`). The AI reads documents and explains results, but it does not calculate payouts.
 
 ## Try it
 
-**[Download the Android APK](https://github.com/sg6724/Paytm_insurance_claim/releases/latest/download/Claimezy.apk)**
+[Download the Android APK](https://github.com/sg6724/Paytm_insurance_claim/releases/latest/download/Claimezy.apk)
 
-Install it on an Android phone and allow installs from your browser if asked. It needs only internet, no laptop.
+1. Install it. You may need to allow installs from your browser.
+2. Tap **New here? Create an account**.
+3. Scroll down to **Financial Services** and tap **Health Insurance**.
+4. Go through the intro, then tap **Try a sample claim**.
 
-1. Tap **New here? Create an account**, then sign up with an email and a password of 8 or more characters.
-2. Scroll down the home screen to **Financial Services** and tap **Health Insurance**.
-3. Follow the onboarding, then pick **Try a sample claim** to walk the full journey.
+The app uses the live backend at https://claimezy-backend.vercel.app, so it only needs an internet connection.
 
-Live backend: https://claimezy-backend.vercel.app (check it at `/health`). Sample bills and policies to upload are in [demo-docs/](demo-docs/).
+| Sample claim | Case | Result |
+|---|---|---|
+| Sunita | Gallbladder surgery, room above the policy limit | ₹68,400 of ₹1,10,000 |
+| Arjun | Dengue, clean claim | ₹62,000 of ₹62,000 |
+| Rakesh | Knee replacement inside the waiting period | Rejected, Clause C4.3 |
 
-Password reset emails need a verified sending domain. Until one is set up, they reach only the Resend account owner's address.
+Sample policies and bills to upload are in [demo-docs](demo-docs/).
 
-## Run it
+## Run it locally
 
-### 1. Backend (laptop)
+Backend:
 
 ```bash
 cd backend
-python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
-echo "SARVAM_API_KEY=<your key>" > .env
-# optional: DATABASE_URL=<postgres url> for Postgres (SQLite otherwise), RESEND_API_KEY=<key> for password reset emails
-.venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8787 --reload
+python3 -m venv .venv
+.venv/bin/pip install -r requirements-dev.txt
+cp .env.example .env   # then add your keys
+.venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8787
+.venv/bin/python -m pytest -q tests
 ```
 
-Check: `curl localhost:8787/health` returns `{"ok":true,"sarvam":true,...}`.
-Tests: `.venv/bin/python -m pytest -q tests` (121 tests, offline, no Sarvam key needed).
-
-### 2. App (phone, Expo Go)
-
-1. Turn on the laptop's hotspot (or put phone and laptop on the same Wi-Fi) and connect the phone.
-2. On the laptop:
-   ```bash
-   cd app
-   npm install
-   npx expo start
-   ```
-3. Install **Expo Go** from the Play Store and scan the QR code.
-
-The app finds the backend automatically on the same host as the Metro bundler, port 8787. To point it elsewhere: `EXPO_PUBLIC_API_URL=http://<ip>:8787 npx expo start`.
-
-If the phone can't load the bundle on a locked-down network, use `npx expo start --tunnel` and set `EXPO_PUBLIC_API_URL` to a reachable backend URL.
-
-### Reset between demos
+App, using Expo Go on a phone on the same network:
 
 ```bash
-curl -X POST localhost:8787/demo/reset
+cd app
+npm install
+npx expo start
 ```
 
-This clears policies and claims so My Policies shows "No policies found" again. Onboarding shows again too.
+## Environment variables
 
-## Demo script (about 4 minutes)
-
-1. **Paytm home → Health Insurance.** First run shows onboarding (3 screens + DPDP consent).
-2. **My Policies is empty**, the gap in today's Paytm app. Tap **Try with a sample claim → Sunita Kulkarni**.
-3. **Your cover in plain words**: 5 topics, each with clause and page. Switch language (globe icon on home) to Hindi or Marathi and tap **Listen**.
-4. **I'm in hospital** → Chat or speak → say in Hindi: *"मेरी माँ सुनीता भर्ती हैं, सिंगल रूम 7500 रुपये रोज़, पित्ताशय की सर्जरी"*. The check flags the room above the ₹5,000/day limit and the proportionate deduction.
-5. Back on the policy → **Start a claim → Sunita → Pay & claim later** → **Use sample documents** → **Continue**. The consent dialog asks **Fill it for me / I'll fill it myself**.
-6. Form shows AI-filled fields with their source, live checks (room rent warning, insurer not informed). Try typing a wrong IFSC to see a correction. **Check my payout** shows **₹68,400 of ₹1,10,000** with every deduction and its clause.
-7. **Submit** → tracker. Show the **bridge loan** card (Key Facts, cooling-off, lender decides).
-8. Tap **Insurer: next step** (demo control) twice → insurer query → reply → next step → **partly approved ₹62,400**.
-9. **Explain this decision** (in Hindi, with voice): the rule engine finds **₹6,000 wrongly deducted** on medicines and tests → **Draft letter for me** → Send. The escalation ladder unlocks GRO → Bima Bharosa → Ombudsman (office found by PIN code). Then tap **Insurer: next step** once more: the insurer accepts the appeal and **₹6,000 is reversed** (₹62,400 becomes ₹68,400).
-10. **NHCX claim pack**: FHIR R4 ClaimBundle. **Privacy & AI activity** lists everything AI did.
-
-Other samples: **Arjun** (bought on Paytm, clean claim, full payout) and **Rakesh** (knee replacement inside the 24-month waiting period: rejected, honest appeal odds, medical EMI option after the appeal path).
-
-To show a real upload, use `demo-docs/Family_Shield_Plus_policy.pdf` (copy it to the phone), or any public policy wording PDF.
-
-## Architecture
-
-```
-Expo React Native app (Expo Go)  ──HTTP──►  FastAPI (laptop :8787)
-                                              ├─ rules/engine.py     money math, IRDAI rules, unit-tested
-                                              ├─ ai/sarvam.py        sarvam-105b chat, vision, Saaras STT, Bulbul TTS (disk-cached)
-                                              ├─ ai/tools.py         parse policy, read documents, hospital chat, explain, draft appeals, assistant
-                                              ├─ claims.py           checklist, autofill, live validation, mock insurer, bridge, FHIR
-                                              └─ store.py            SQLite + audit log
-```
-
-| Real / open | Mocked behind an interface |
+| Name | Needed for |
 |---|---|
-| IRDAI non-payable list, proportionate-deduction exemptions, cashless 1 h / discharge 3 h timelines | Paytm login, "Bought on Paytm" policies, UPI, Postpaid |
-| Insurance Ombudsman jurisdictions by PIN code | Insurer / TPA claim API, decisions, settlement |
-| NRCeS FHIR ClaimBundle profile | NHCX submission, ABHA fetch |
-| Sarvam AI (team credits) | Lender decision, human support ticket |
+| `SARVAM_API_KEY` | AI features |
+| `DATABASE_URL` | Postgres. Without it, the backend uses local SQLite |
+| `RESEND_API_KEY` | Password reset emails |
 
-Sample policies, patients and bills are fictional. No real patient data.
+## How it's built
+
+| Part | Technology |
+|---|---|
+| App | Expo, React Native, TypeScript |
+| Backend | FastAPI on Vercel |
+| Database | Postgres on Neon |
+| AI | Sarvam: chat, document reading, speech-to-text, text-to-speech |
+| Email | Resend |
+
+| Folder | Contents |
+|---|---|
+| `app/` | Android app |
+| `backend/app/rules/` | Rule engine and IRDAI non-payable list |
+| `backend/app/ai/` | Sarvam client and AI tools |
+| `backend/app/claims.py` | Claim workflow and mock insurer |
+| `backend/tests/` | Backend tests |
+| `demo-docs/` | Synthetic sample documents |
+
+## What is real and what is mocked
+
+| Real | Mocked |
+|---|---|
+| Sarvam AI | Paytm login and policies bought on Paytm |
+| IRDAI non-payable list and claim timelines | Insurer and TPA |
+| Insurance Ombudsman offices by PIN code | NHCX submission and ABHA |
+| FHIR R4 claim pack format | UPI, lender and human support |
+
+All sample policies, patients and bills are fictional. No real patient data is used.
+
+## Known limits
+
+- This is a hackathon build, not a production service. No real claim or payment is processed.
+- Reset emails currently reach only the Resend account owner, until a sending domain is verified.
+- File uploads are limited to about 4 MB by the hosting platform.

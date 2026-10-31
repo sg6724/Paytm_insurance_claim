@@ -19,3 +19,13 @@ backend/app/data/ai_cache/tts_*
 
 # Vercel
 .vercel/
+
+# Internal notes and generated files
+PRD.md
+CONTEXT.md
+AUDIT.md
+app/AGENTS.md
+app/README.md
+app/.claude/
+app/.vscode/
+backend/app/data/ai_cache/
