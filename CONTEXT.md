@@ -293,7 +293,7 @@ On 31 Oct the laptop's Wi-Fi IP was `10.50.123.136`. If the phone switches to th
   - Always check the versioned docs (`app/AGENTS.md`).
 - **Browser automation** of the Expo web build was flaky: the window size stuck and the renderer froze. Verify through the API or on the phone instead.
 - **Hospital chat.** The LLM must output diagnosis and procedure in **English** for the waiting-period keyword match. This is enforced in the prompt.
-- **Uvicorn** runs with `--reload`, so backend edits apply live. Metro started with `CI=1` does **not** watch files.
+- **Uvicorn `--reload`** restarts the server on every `.py` change (yours, or a `git pull`), and requests in flight fail on the phone with "Network request failed". Use `--reload` while coding; for a demo run `uvicorn app.main:app --host 0.0.0.0 --port 8787` without it. Metro started with `CI=1` does **not** watch files.
 
 ## 10. Open items / next steps
 
