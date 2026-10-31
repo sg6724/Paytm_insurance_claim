@@ -362,6 +362,38 @@ def policy_pdf(pid, fname, header_lines):
     d.save_pdf(fname)
 
 
+def upload_test_policy():
+    """A policy that exists only as this PDF, not in samples.py, so uploading it is a real read with known answers."""
+    org, plan = "NAVDEEP GENERAL INSURANCE (DEMO)", "Parivar Raksha Gold"
+    d = Doc()
+    d.new_page(org, "Retail Health Insurance · UIN DEMO-HLT-0002 (demo)", f"{plan} · POLICY SCHEDULE AND WORDING")
+    d.kv([("Policy No.", "NGI/PRG/2026/0071542"), ("Policy type", "Family floater"), ("Policy period", "01/04/2026 to 31/03/2027"),
+          ("Sum insured", f"Rs {inr(750000)}"), ("Policyholder", "Meera Joshi, Self, Female, age 45"), ("Insured member", "Anil Joshi, Spouse, Male, age 49"),
+          ("Pre-existing condition declared", "Anil Joshi: Diabetes"), ("Consumables cover", "Not opted")])
+    wording = [
+        (2, [("C1.1", "Sum insured", f"The sum insured is Rs {inr(750000)} per policy year, shared by all insured members on a floater basis."),
+             ("C2.1", "Room rent", "Room rent is payable up to 1% of the sum insured per day. If a higher room is chosen, associated medical expenses are paid in the same proportion, except pharmacy, consumables, implants and diagnostics."),
+             ("C2.2", "ICU charges", "ICU charges are payable up to 2% of the sum insured per day."),
+             ("C3.1", "Co-payment", "A co-payment of 20% applies to every admissible claim for an insured member aged 60 years or above. No co-payment applies below that age."),
+             ("C3.2", "Deductible", f"A deductible of Rs {inr(10000)} applies to each claim."),
+             ("C4.1", "Sub-limits", f"Cataract is payable up to Rs {inr(40000)} per eye. Hernia repair is payable up to Rs {inr(60000)}.")]),
+        (3, [("C5.1", "Initial waiting period", "Illness claims are not covered in the first 30 days from the policy start date. Accidents are covered from day one."),
+             ("C5.2", "Pre-existing diseases", "Pre-existing diseases are covered after 48 months of continuous cover."),
+             ("C5.3", "Specific diseases", "Cataract, hernia, joint replacement and kidney stones are covered after 24 months of continuous cover."),
+             ("C6.1", "Exclusions", "Cosmetic surgery, weight-loss surgery and treatment outside India are excluded."),
+             ("C6.2", "Non-payable items", "Items on the IRDAI list of non-medical expenses are not payable."),
+             ("C7.1", "Pre and post hospitalisation", "Medical expenses are covered for 60 days before admission and 90 days after discharge."),
+             ("C8.1", "Claim intimation", "Inform the insurer within 24 hours of an emergency admission, and at least 48 hours before a planned admission."),
+             ("C8.2", "Claim documents", "Submit all claim documents within 15 days of discharge.")]),
+    ]
+    for page_no, clauses in wording:
+        d.new_page(org, f"{plan} · Policy wording", f"Page {page_no}")
+        for cid, title, text in clauses:
+            d.heading(f"Section {cid} · {title}")
+            d.para(text)
+    d.save_pdf("Upload_Test_Parivar_Raksha_policy.pdf")
+
+
 def index_html():
     files = sorted(f.name for f in OUT.iterdir() if f.suffix in (".pdf", ".jpg", ".png"))
     groups = {"Policies": [f for f in files if "policy" in f.lower()],
@@ -390,6 +422,7 @@ if __name__ == "__main__":
     decision_letter("sunita_gallbladder", "partial")
     decision_letter("rakesh_knee", "rejected")
     sms_screenshot()
+    upload_test_policy()
     policy_pdf("pol_shield", "Family_Shield_Plus_policy.pdf", [
         ("Policy No.", POL["pol_shield"]["policy_number"]), ("Policy period", "15/08/2026 to 14/08/2027"), ("Continuous cover since", "15/08/2025"),
         ("Plan type / Sum insured", "Family floater · Rs. 5,00,000"), ("Insured 1", "Sunita Kulkarni, Self, 58 F · PED: Hypertension"),
