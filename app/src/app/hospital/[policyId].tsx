@@ -1,4 +1,5 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
+import * as DocumentPicker from 'expo-document-picker';
 import * as ImagePicker from 'expo-image-picker';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -98,16 +99,36 @@ export default function HospitalCheck() {
     }
   }
 
-  async function billPhoto(fromCamera: boolean) {
-    const perm = fromCamera ? await ImagePicker.requestCameraPermissionsAsync() : await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (!perm.granted) return setError('Permission needed to read the bill.');
-    const r = fromCamera ? await ImagePicker.launchCameraAsync({ quality: 0.7 }) : await ImagePicker.launchImageLibraryAsync({ quality: 0.7 });
-    if (r.canceled) return;
-    setBusy('Reading the bill…');
+  // Camera, gallery or a file (PDF or image). Every step is guarded: a picker or permission failure shows a message.
+  async function addBill(source: 'camera' | 'gallery' | 'file') {
+    setError(null);
+    let file: { uri: string; name: string; type: string } | null = null;
     try {
-      const out = await upload('/hospital/bill', { uri: r.assets[0].uri, name: 'bill.jpg', type: r.assets[0].mimeType ?? 'image/jpeg' }, { policy_id: policyId });
+      if (source === 'file') {
+        const r = await DocumentPicker.getDocumentAsync({ type: ['application/pdf', 'image/*'], copyToCacheDirectory: true });
+        if (r.canceled) return;
+        const a = r.assets[0];
+        file = { uri: a.uri, name: a.name, type: a.mimeType ?? (a.name.toLowerCase().endsWith('.pdf') ? 'application/pdf' : 'image/jpeg') };
+      } else {
+        const perm = source === 'camera' ? await ImagePicker.requestCameraPermissionsAsync() : await ImagePicker.requestMediaLibraryPermissionsAsync();
+        if (!perm.granted) return setError(`Allow ${source === 'camera' ? 'camera' : 'photo'} access to read the bill.`);
+        const r = source === 'camera' ? await ImagePicker.launchCameraAsync({ quality: 0.6 }) : await ImagePicker.launchImageLibraryAsync({ quality: 0.6 });
+        if (r.canceled) return;
+        file = { uri: r.assets[0].uri, name: 'bill.jpg', type: r.assets[0].mimeType ?? 'image/jpeg' };
+      }
+    } catch (e: any) {
+      return setError(`Couldn't open the ${source === 'file' ? 'file picker' : source}: ${e?.message ?? 'unknown error'}`);
+    }
+    console.log('[hospital] bill picked', source, file.name, file.type);
+    setBusy(file.type === 'application/pdf' ? 'Reading the bill PDF…' : 'Reading the bill photo…');
+    try {
+      const out = await upload('/hospital/bill', file, { policy_id: String(policyId) });
       const merged = { ...facts, ...out.facts };
       setFacts(merged);
+      if (!Object.keys(out.facts ?? {}).length) {
+        setBusy(null);
+        return setError("We couldn't find room or treatment details on this bill. Tell us in the chat or the quick form instead.");
+      }
       await runCheck(merged);
     } catch (e: any) {
       setError(e.message);
@@ -200,10 +221,11 @@ export default function HospitalCheck() {
 
         {tab === 'bill' ? (
           <Card style={{ gap: 10 }}>
-            <Text style={{ color: C.sub }}>If the hospital gave you an estimate or interim bill, we can read it. This is optional.</Text>
+            <Text style={{ color: C.sub }}>If the hospital gave you an estimate or interim bill, we can read it: a photo or a PDF. This is optional.</Text>
             <View style={{ flexDirection: 'row', gap: 8 }}>
-              <Btn title="Camera" icon="camera-outline" kind="secondary" style={{ flex: 1 }} onPress={() => billPhoto(true)} />
-              <Btn title="Gallery" icon="images-outline" kind="secondary" style={{ flex: 1 }} onPress={() => billPhoto(false)} />
+              <Btn title="Camera" icon="camera-outline" kind="secondary" style={{ flex: 1 }} onPress={() => addBill('camera')} />
+              <Btn title="Gallery" icon="images-outline" kind="secondary" style={{ flex: 1 }} onPress={() => addBill('gallery')} />
+              <Btn title="PDF" icon="document-text-outline" kind="secondary" style={{ flex: 1 }} onPress={() => addBill('file')} />
             </View>
           </Card>
         ) : null}

@@ -154,7 +154,7 @@ export function Field({ label, value, onChangeText, hint, tone, source, ...rest 
         ) : null}
       </View>
       <TextInput value={value} onChangeText={onChangeText} placeholderTextColor={C.faint} style={[s.input, { borderColor: border }]} {...rest} />
-      {hint}
+      {typeof hint === 'string' ? <Text style={{ color: C.sub, fontSize: 12 }}>{hint}</Text> : hint}
     </View>
   );
 }
