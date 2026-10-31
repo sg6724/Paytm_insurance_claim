@@ -263,9 +263,10 @@ def advance(claim: dict, policy: dict) -> dict:
     if st == "submitted":
         timeline_add(claim, "under_review", "Insurer is reviewing your claim", "The TPA has opened your file.")
     elif st == "under_review" and not claim.get("query_done") and behaviour in ("over_deduct", "query"):
+        pharmacy = sum(float(i["amount"]) for i in claim_input(claim, policy)["line_items"] if i.get("category") == "pharmacy")
         task = {"id": store.new_id("tsk"), "type": "insurer_query", "status": "open",
                 "title": "Insurer needs pharmacy bills with prescriptions",
-                "detail": "Please submit pharmacy bills along with the doctor's prescriptions for all medicines billed (₹12,500).",
+                "detail": "Please submit pharmacy bills along with the doctor's prescriptions for all medicines billed (₹" + f"{pharmacy:,.0f}" + ").",
                 "due": str(date.today() + timedelta(days=7))}
         claim.setdefault("tasks", []).append(task)
         timeline_add(claim, "query_raised", "Insurer raised a query", task["title"])
@@ -274,12 +275,19 @@ def advance(claim: dict, policy: dict) -> dict:
     elif st in ("approved", "partially_approved"):
         amt = claim["decision"]["amount_approved"]
         claim["settled_on"] = str(date.today())
-        timeline_add(claim, "settled", f"₹{amt:,.0f} credited to your bank account", "NEFT credit to the account on the claim form.")
+        policy["remaining_si"] = max(float(policy.get("remaining_si", policy["sum_insured"])) - amt, 0)
+        store.put("policy", policy)
         bridge = claim.get("bridge")
         if bridge and bridge.get("status") == "active":
-            bridge["status"] = "repaid"
-            bridge["repaid_on"] = str(date.today())
-            timeline_add(claim, "settled", f"Bridge loan of ₹{bridge['principal']:,.0f} repaid automatically from the settlement")
+            owed = bridge.get("total_repayable", bridge["principal"])
+            taken = min(owed, amt)
+            bridge.update(status="repaid" if taken >= owed else "part_repaid", repaid_on=str(date.today()), repaid_amount=taken, balance_due=owed - taken)
+            claim["net_credited"] = amt - taken
+            timeline_add(claim, "settled", f"Insurer paid ₹{amt:,.0f}. ₹{taken:,.0f} closed your bridge loan, ₹{amt - taken:,.0f} credited to your bank account",
+                         "NEFT credit to the account on the claim form." if taken >= owed else f"₹{owed - taken:,.0f} of the loan is still due in EMIs.")
+        else:
+            claim["net_credited"] = amt
+            timeline_add(claim, "settled", f"₹{amt:,.0f} credited to your bank account", "NEFT credit to the account on the claim form.")
     return claim
 
 
@@ -299,7 +307,7 @@ def _decide(claim, policy, behaviour):
     deductions = [dict(d) for d in pf["deductions"]]
     if pf["rejected"]:
         claim["decision"] = {"type": "rejected", "amount_claimed": pf["billed"], "amount_approved": 0, "deductions": deductions,
-                             "reasons": [r["reason"] for r in pf["reject_reasons"]], "letter": _letter(claim, policy, "rejected", pf["billed"], 0, deductions)}
+                             "reasons": [r["reason"] for r in pf["reject_reasons"]], "letter": _letter(claim, policy, "rejected", pf["billed"], 0, deductions, pf["reject_reasons"][0])}
         timeline_add(claim, "rejected", "Claim rejected by insurer", pf["reject_reasons"][0]["reason"])
         return
     approved = pf["payable"]
@@ -322,15 +330,15 @@ def _decide(claim, policy, behaviour):
                  "Settlement letter received.")
 
 
-def _letter(claim, policy, typ, claimed, approved, deductions):
+def _letter(claim, policy, typ, claimed, approved, deductions, reject=None):
     member = next((m for m in policy["members"] if m["id"] == (claim.get("form") or {}).get("member_id", claim.get("member_id"))), policy["members"][0])
     rows = "\n".join(f"  - {d['item']}: ₹{d['amount']:,.0f} ({d['reason']})" for d in deductions if d["kind"] != "waiting")
     head = {"rejected": "REPUDIATION OF CLAIM", "approved": "CLAIM SETTLEMENT", "partially_approved": "CLAIM SETTLEMENT (PARTIAL)"}[typ]
     body = (f"{policy['insurer']}\n{head}\n\nClaim No: {claim.get('insurer_ref')}   Policy No: {policy.get('policy_number')}\n"
             f"Patient: {member['name']}\nAmount claimed: ₹{claimed:,.0f}\nAmount approved: ₹{approved:,.0f}\n\n")
     if typ == "rejected":
-        c = engine.clause(policy, "waiting_specific")
-        body += f"Your claim is not payable under Clause {c} of the policy: treatment falls within the waiting period for specified diseases.\n"
+        cl = f" under Clause {reject['clause_id']} of the policy" if reject.get("clause_id") else ""
+        body += f"Your claim is not payable{cl}: {reject['reason']}\n"
     else:
         body += f"Deductions:\n{rows}\n"
     body += "\nIf you are not satisfied, you may write to our Grievance Redressal Officer, use IRDAI Bima Bharosa, or approach the Insurance Ombudsman."
@@ -363,6 +371,28 @@ def analyse_decision(claim: dict, policy: dict) -> dict:
              f"By your policy rules you should get ₹{expected:,.0f}. " + summary)
     return {"strength": strength, "disputed_amount": disputed, "expected_payable": expected, "grounds": grounds,
             "summary": summary, "plain_english": plain, "rule_deductions": pf["deductions"]}
+
+
+def next_step(claim: dict, policy: dict) -> str | None:
+    """What the user should do now, from the claim's own state. Rules only, so the recap never guesses."""
+    st = claim.get("status")
+    if st == "settled":
+        return "Nothing is pending. This claim is settled."
+    task = next((t for t in claim.get("tasks", []) if t.get("status") == "open"), None)
+    if task:
+        return f"Answer the insurer's query by {task['due']}: {task['title']}."
+    if st in ("draft", "documents_pending", "intimated", "ready"):
+        return "Finish your documents and the claim form, then check your payout."
+    if st in ("submitted", "under_review"):
+        return "Nothing to do right now. The insurer is reviewing your claim."
+    if claim.get("decision"):
+        analysis = analyse_decision(claim, policy)
+        rung = next((r for r in ladder(claim) if r["status"] == "available"), None)
+        if analysis["strength"] == "strong" and rung:
+            return f"{rung['title']}: ₹{analysis['disputed_amount']:,.0f} looks wrongly deducted."
+        if analysis["strength"] == "weak" and not claim.get("appeal_dismissed"):
+            return "Read why the claim was rejected, then decide whether to appeal or look at EMI options."
+    return None
 
 
 def ladder(claim: dict) -> list[dict]:

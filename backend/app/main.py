@@ -11,6 +11,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
+from . import assistant_memory as memory
 from . import claims as C
 from . import config, store
 from .ai import sarvam, tools
@@ -383,6 +384,7 @@ def get_claim(cid: str):
 @app.delete("/claims/{cid}")
 def delete_claim(cid: str):
     store.delete("claim", cid)
+    store.delete("thread", memory.thread_id(cid, None))
     return {"ok": True}
 
 
@@ -493,6 +495,8 @@ def preflight(cid: str, body: FormIn | None = None):
 def submit(cid: str):
     c = must("claim", cid)
     p = must("policy", c["policy_id"])
+    if c.get("insurer_ref"):
+        raise HTTPException(409, "This claim has already been submitted.")
     errs = [x for x in C.validate(c, p, c.get("form", {})) if x["severity"] in ("error", "required")]
     if errs:
         raise HTTPException(422, {"message": "Fix the highlighted fields first.", "corrections": errs})
@@ -521,6 +525,11 @@ class TaskReply(BaseModel):
 @app.post("/claims/{cid}/tasks/{tid}")
 def reply_task(cid: str, tid: str, body: TaskReply):
     c = must("claim", cid)
+    task = next((t for t in c.get("tasks", []) if t["id"] == tid), None)
+    if not task:
+        raise HTTPException(404, "task not found")
+    if task["status"] != "open":
+        raise HTTPException(409, "This query has already been answered.")
     C.respond_task(c, tid, body.note)
     store.put("claim", c)
     store.audit("you", "query_answered", body.note, cid)
@@ -562,9 +571,18 @@ class AppealIn(BaseModel):
     text: str | None = None
 
 
+def _appeal_claim(cid: str, step: str) -> dict:
+    c = must("claim", cid)
+    if step not in ("insurer", "gro", "bima_bharosa", "ombudsman"):
+        raise HTTPException(422, "Unknown escalation step.")
+    if not c.get("decision"):
+        raise HTTPException(409, "There is no insurer decision to appeal yet.")
+    return c
+
+
 @app.post("/claims/{cid}/appeal/draft")
 def appeal_draft(cid: str, body: AppealIn):
-    c = must("claim", cid)
+    c = _appeal_claim(cid, body.step)
     p = must("policy", c["policy_id"])
     analysis = C.analyse_decision(c, p)
     member = next((m for m in p["members"] if m["id"] == c.get("form", {}).get("member_id", c["member_id"])), p["members"][0])
@@ -576,7 +594,10 @@ def appeal_draft(cid: str, body: AppealIn):
 
 @app.post("/claims/{cid}/appeal/send")
 def appeal_send(cid: str, body: AppealIn):
-    c = must("claim", cid)
+    c = _appeal_claim(cid, body.step)
+    rung = next(r for r in C.ladder(c) if r["step"] == body.step)
+    if rung["status"] != "available":
+        raise HTTPException(409, "Already sent." if rung["status"] == "sent" else "Finish the earlier step first.")
     c.setdefault("appeals", []).append({"step": body.step, "text": body.text, "sent_at": store.now(), "ref": store.new_id("grv")})
     C.timeline_add(c, c["status"], {"insurer": "Review request sent to insurer", "gro": "Grievance filed with insurer",
                                      "bima_bharosa": "Complaint filed on Bima Bharosa", "ombudsman": "Complaint sent to Insurance Ombudsman"}[body.step],
@@ -603,6 +624,8 @@ def ombudsman(pincode: str):
 def fhir(cid: str):
     c = must("claim", cid)
     p = must("policy", c["policy_id"])
+    if not c.get("form"):
+        raise HTTPException(409, "Fill the claim form before exporting the claim pack.")
     store.audit("you", "fhir_exported", "Exported NHCX claim bundle", cid)
     return C.fhir_bundle(c, p)
 
@@ -652,6 +675,10 @@ class UpiIn(BaseModel):
 
 @app.post("/mock/upi/pay")
 def upi_pay(body: UpiIn):
+    if body.amount <= 0:
+        raise HTTPException(422, "Enter an amount above ₹0.")
+    if body.claim_id:
+        must("claim", body.claim_id)
     txn = {"id": store.new_id("upi"), "amount": body.amount, "payee": body.payee, "note": body.note, "status": "SUCCESS",
            "utr": f"6{store.new_id('x')[-11:].upper()}", "claim_id": body.claim_id}
     store.put("payment", txn)
@@ -665,7 +692,9 @@ def upi_pay(body: UpiIn):
 # ---------------- assistant ----------------
 
 class AssistantIn(BaseModel):
-    messages: list[dict]
+    message: str | None = None        # the new message; history comes from the saved thread
+    attachment: str | None = None     # text read from a screenshot, for the model only
+    messages: list[dict] = []         # older clients send the whole history instead
     lang: str = "en-IN"
     screen: str | None = None
     policy_id: str | None = None
@@ -675,6 +704,11 @@ class AssistantIn(BaseModel):
 @app.post("/assistant/chat")
 def assistant_chat(body: AssistantIn):
     ctx = {"screen": body.screen, "today": str(date.today())}
+    thread = memory.load(memory.thread_id(body.claim_id, body.policy_id))
+    if thread["summary"]:
+        ctx["earlier_conversation_summary"] = thread["summary"]
+    if thread["messages"]:
+        ctx["previous_session_ended"] = thread["messages"][-1]["at"]
     policies = store.find("policy")
     p = store.get("policy", body.policy_id) if body.policy_id else (policies[0] if policies else None)
     if body.claim_id:
@@ -689,12 +723,48 @@ def assistant_chat(body: AssistantIn):
         ctx["policy"] = tools.policy_context(p)
     else:
         ctx["policy"] = "No policy added yet. Guide the user to add one from My Policies."
+    if body.message is not None:
+        said = body.message
+        ask = f"{said}\n\nATTACHMENT (text read from the screenshot/document):\n{body.attachment}" if body.attachment else said
+        history = memory.history_for_model(thread, ask)
+    else:
+        history = body.messages
+        said = next((m["content"] for m in reversed(history) if m.get("role") == "user"), "")
     try:
-        reply = tools.assistant(body.messages, body.lang, ctx)
+        reply = tools.assistant(history, body.lang, ctx)
     except SarvamError as e:
-        raise HTTPException(502, str(e))
+        raise HTTPException(502, str(e))  # nothing is saved, so the user can simply ask again
+    memory.append(thread, "user", said, image=bool(body.attachment))
+    memory.append(thread, "assistant", reply)
+    older = memory.pending_summary(thread)
+    if older:
+        thread["summary"] = tools.summarise_conversation(older[thread.get("summary_n", 0):], thread["summary"])
+        thread["summary_n"] = len(older)
+    memory.save(thread)
     store.audit("ai", "assistant_reply", f"Answered a question on {body.screen or 'the app'}", body.claim_id or body.policy_id)
     return {"reply": reply}
+
+
+@app.get("/assistant/thread")
+def assistant_thread(claim_id: str | None = None, policy_id: str | None = None, lang: str = "en-IN"):
+    """The saved conversation, with a recap for a returning user and the next step from the claim's state."""
+    t = memory.load(memory.thread_id(claim_id, policy_id))
+    c = store.get("claim", claim_id) if claim_id else None
+    p = store.get("policy", c["policy_id"]) if c else None
+    next_step = C.next_step(c, p) if c and p else None
+    if not t["messages"]:
+        return {"id": t["id"], "messages": [], "recap": None, "next_step": next_step, "last_at": None}
+    if t.get("recap_n") != len(t["messages"]) or t.get("recap_lang") != lang:
+        t.update(recap=tools.recap_conversation(t["messages"], t["summary"], lang), recap_n=len(t["messages"]), recap_lang=lang)
+        memory.save(t)
+    return {"id": t["id"], "messages": t["messages"], "recap": t["recap"], "next_step": next_step, "last_at": t["messages"][-1]["at"]}
+
+
+@app.delete("/assistant/thread")
+def clear_thread(claim_id: str | None = None, policy_id: str | None = None):
+    store.delete("thread", memory.thread_id(claim_id, policy_id))
+    store.audit("you", "chat_cleared", "Cleared a saved assistant conversation", claim_id or policy_id)
+    return {"ok": True}
 
 
 @app.post("/assistant/attach")
@@ -763,6 +833,8 @@ class TicketIn(BaseModel):
 
 @app.post("/support/ticket")
 def support_ticket(body: TicketIn):
+    if body.claim_id:
+        must("claim", body.claim_id)
     t = {"id": store.new_id("tkt"), "topic": body.topic, "messages": body.messages[-20:], "claim_id": body.claim_id, "status": "open",
          "eta": "A claims expert from Paytm Insurance will call you within 2 hours (mock)."}
     store.put("ticket", t)

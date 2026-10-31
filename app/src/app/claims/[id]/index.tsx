@@ -123,7 +123,7 @@ export default function ClaimTracker() {
         {c.bridge ? (
           <Card style={{ gap: 4 }}>
             <Text style={{ fontWeight: '700' }}>Bridge loan · {c.bridge.status}</Text>
-            <Text style={{ color: C.sub }}>{rupees(c.bridge.principal)} from {c.bridge.lender}. {c.bridge.status === 'repaid' ? 'Repaid from your settlement.' : `Repaid automatically when the insurer pays. Cancel free until ${fmtDate(c.bridge.cooling_off_until)}.`}</Text>
+            <Text style={{ color: C.sub }}>{rupees(c.bridge.principal)} from {c.bridge.lender}. {c.bridge.status === 'repaid' ? 'Repaid from your settlement.' : c.bridge.status === 'part_repaid' ? `${rupees(c.bridge.balance_due)} is still due in EMIs.` : `Repaid automatically when the insurer pays. Cancel free until ${fmtDate(c.bridge.cooling_off_until)}.`}</Text>
           </Card>
         ) : null}
 

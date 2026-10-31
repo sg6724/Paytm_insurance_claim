@@ -297,10 +297,45 @@ def assistant(messages: list[dict], lang: str, context: dict) -> str:
     sys = (GUARDRAIL + " You can help with: understanding the policy, what to do in hospital, which documents are needed, filling the claim "
            "form, tracking the claim, insurer queries, deductions and rejections, appeals and the escalation ladder (insurer, GRO, Bima "
            "Bharosa, Insurance Ombudsman), and bridge loans offered by partner lenders (the lender decides; show Key Facts first). "
-           "If the user shares a screenshot or document, its extracted text is given as ATTACHMENT. " + lang_instruction(lang))
+           "If the user shares a screenshot or document, its extracted text is given as ATTACHMENT. "
+           "You keep one running conversation with this user across visits. In CONTEXT, earlier_conversation_summary covers older messages and "
+           "previous_session_ended says when they last talked to you. Build on that instead of starting over, and when the user says continue, "
+           "pick up the last open point. " + lang_instruction(lang))
     msgs = [{"role": "system", "content": sys}, {"role": "system", "content": "CONTEXT: " + json.dumps(context, ensure_ascii=False)[:24000]}]
     msgs += messages[-16:]
     return sarvam.chat(msgs, task="assistant", use_cache=True, max_tokens=900, temperature=0.3)
+
+
+def _transcript(messages: list[dict]) -> str:
+    return "\n".join(f"{m['role'].upper()}: {m['content'][:600]}" for m in messages)
+
+
+def summarise_conversation(messages: list[dict], prior: str = "") -> str:
+    """Rolling summary of messages that have left the model window. Internal, so always English."""
+    try:
+        return sarvam.chat([
+            {"role": "system", "content": "You keep notes on a customer's conversation with an insurance claims assistant. Use only facts in the messages."},
+            {"role": "user", "content": f"Notes so far: {prior or 'none'}\n\nNew messages:\n{_transcript(messages)}\n\n"
+                                        "Write updated notes in under 120 words: what the customer asked, what was found or decided, what is still open."},
+        ], task="thread_summary", max_tokens=400)
+    except SarvamError:
+        asked = [m["content"][:120] for m in messages if m["role"] == "user"][-3:]
+        return f"{prior} Customer asked: {'; '.join(asked)}".strip()
+
+
+def recap_conversation(messages: list[dict], summary: str, lang: str) -> str:
+    """What the user sees on coming back. Says what was discussed; the next step is added by the rules, not here."""
+    try:
+        return sarvam.chat([
+            {"role": "system", "content": GUARDRAIL + " " + lang_instruction(lang)},
+            {"role": "user", "content": "The customer is back. In at most 2 short sentences, addressed to them and starting with the equivalent of "
+                                        "'Last time', say what you talked about and what came out of it. Do not suggest a next step. Only use facts below.\n"
+                                        f"Older notes: {summary or 'none'}\nConversation:\n{_transcript(messages[-16:])}"},
+        ], task="thread_recap", max_tokens=250)
+    except SarvamError:
+        asked = [m["content"] for m in messages if m["role"] == "user"]
+        more = f" and {len(asked) - 1} other question{'s' if len(asked) > 2 else ''}" if len(asked) > 1 else ""
+        return f'Last time you asked: "{asked[-1][:140]}"{more}.' if asked else ""
 
 
 def describe_attachment(data: bytes, mime: str) -> str:
