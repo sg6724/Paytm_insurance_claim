@@ -53,16 +53,6 @@ export default function Home() {
         </Pressable>
       </View>
       <ScrollView contentContainerStyle={{ padding: 12, gap: 12, paddingBottom: 120 }}>
-        <Pressable style={st.promo} onPress={goInsurance}>
-          <View style={st.promoIcon}>
-            <Ionicons name="shield-checkmark" size={26} color={C.navy} />
-          </View>
-          <View style={{ flex: 1 }}>
-            <Text style={{ fontWeight: '800', color: C.text, fontSize: 16 }}>{t('claimsNew')}</Text>
-            <Text style={{ color: C.sub, fontSize: 13 }}>{t('claimsNewSub')}</Text>
-          </View>
-          <Ionicons name="chevron-forward" size={22} color={C.text} />
-        </Pressable>
         <Grid
           title="Recharge & Bills"
           action="View All"
@@ -111,8 +101,6 @@ const st = StyleSheet.create({
   top: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 12, paddingBottom: 10, backgroundColor: C.bg },
   avatar: { width: 38, height: 38, borderRadius: 19, backgroundColor: '#CFF5EC', alignItems: 'center', justifyContent: 'center' },
   search: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: '#fff', borderRadius: 22, paddingHorizontal: 14, height: 44 },
-  promo: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: C.skySoft, borderRadius: 16, padding: 14, borderWidth: 1, borderColor: '#BFE9F8' },
-  promoIcon: { width: 46, height: 46, borderRadius: 12, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center' },
   block: { backgroundColor: '#fff', borderRadius: 16, padding: 14, ...shadow },
   blockHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
   blockTitle: { fontSize: 18, fontWeight: '700', color: C.text },

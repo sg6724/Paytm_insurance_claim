@@ -7,6 +7,7 @@ import { get, rupees, send } from '@/lib/api';
 import { useApp } from '@/lib/app-context';
 import { C } from '@/lib/theme';
 import { Btn, Card, ErrorNote, Field, Header, IconBubble, Loading, Pill, Row, Screen, Section, Sheet, useAsync } from '@/ui/kit';
+import { Tip } from '@/ui/tip';
 import { ListenButton } from '@/ui/voice';
 
 const TOPIC_ICON: Record<string, any> = { room_rent: 'bed-outline', waiting: 'time-outline', coverage: 'medkit-outline', copay: 'cash-outline', claims: 'business-outline' };
@@ -49,6 +50,7 @@ export default function PolicyDetail() {
             <Btn title={t('startClaim')} icon="document-text-outline" style={{ flex: 1 }} onPress={() => setStartOpen(true)} />
           </View>
         }>
+        <Tip id="policy" text="Tap a topic to read it in plain words. The clause link shows the exact wording from your policy, and Listen reads it aloud in your language." />
         <Card style={{ backgroundColor: C.navy, borderColor: C.navy, gap: 6 }}>
           <Text style={{ color: '#BFD7F5', fontSize: 12 }}>{p.insurer}</Text>
           <Text style={{ color: '#fff', fontSize: 20, fontWeight: '800' }}>{p.plan}</Text>
@@ -69,6 +71,13 @@ export default function PolicyDetail() {
           </View>
           <Text style={{ color: '#fff', marginTop: 6 }}>{p.members.map((m: any) => `${m.name} (${m.relation}${m.age ? ', ' + m.age : ''})`).join(' · ')}</Text>
         </Card>
+
+        {p.review_ticket ? (
+          <Card style={{ backgroundColor: C.amberSoft, borderColor: '#F5D9A8' }}>
+            <Text style={{ fontWeight: '700', color: C.amber }}>A person will double-check this policy</Text>
+            <Text style={{ color: C.amber, fontSize: 13 }}>We could not read it with enough confidence ({p.review_ticket}). Please confirm the details below meanwhile.</Text>
+          </Card>
+        ) : null}
 
         {p.needs_review?.length ? (
           <Card style={{ backgroundColor: C.amberSoft, borderColor: '#F5D9A8' }} onPress={() => setReview(true)}>

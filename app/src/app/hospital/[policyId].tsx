@@ -8,6 +8,7 @@ import { get, rupees, send, upload } from '@/lib/api';
 import { useApp } from '@/lib/app-context';
 import { C } from '@/lib/theme';
 import { Btn, Card, ErrorNote, Field, Header, Loading, Money, Pill, Section, useAsync } from '@/ui/kit';
+import { Tip } from '@/ui/tip';
 import { ListenButton, MicButton, VoiceHint } from '@/ui/voice';
 
 type Msg = { role: 'user' | 'assistant'; content: string };
@@ -95,6 +96,7 @@ export default function HospitalCheck() {
     <KeyboardAvoidingView style={{ flex: 1, backgroundColor: C.bg }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <Header title={t('imInHospital')} sub="" />
       <ScrollView ref={scroll} contentContainerStyle={{ padding: 16, gap: 14, paddingBottom: 140 }} keyboardShouldPersistTaps="handled">
+        <Tip id="hospital" text="You do not need a bill. Just tell us the room and the treatment, by voice or by typing. We show what the insurer is likely to cut while you can still change it." />
         {!p ? <Loading /> : null}
         <View style={{ flexDirection: 'row', backgroundColor: '#fff', borderRadius: 12, padding: 4, borderWidth: 1, borderColor: C.line }}>
           {(['cashless', 'reimbursement'] as const).map((k) => (

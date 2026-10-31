@@ -1,12 +1,13 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useCallback, useState } from 'react';
-import { Pressable, Text, View } from 'react-native';
+import { Text, View } from 'react-native';
 
 import { fmtDate, fmtTime, get, rupees, send } from '@/lib/api';
 import { useApp } from '@/lib/app-context';
 import { C } from '@/lib/theme';
 import { Btn, Card, Header, Loading, Money, Pill, Screen, Section, Sheet, useAsync } from '@/ui/kit';
+import { Tip } from '@/ui/tip';
 
 const STATUS_TONE: Record<string, any> = { settled: 'ok', approved: 'ok', partially_approved: 'warn', rejected: 'bad', query_raised: 'warn' };
 const STEPS = ['submitted', 'under_review', 'decision', 'settled'];
@@ -46,6 +47,7 @@ export default function ClaimTracker() {
     <View style={{ flex: 1 }}>
       <Header sub="" title="Claim status" />
       <Screen>
+        <Tip id="tracker" text="Your claim moves through these steps. We tell you when the insurer asks for something or decides, and what you can do next." />
         <Card style={{ gap: 8 }}>
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
             <Text style={{ color: C.sub, fontSize: 12 }}>{c.insurer_ref ?? 'Not submitted yet'}</Text>
@@ -167,9 +169,6 @@ export default function ClaimTracker() {
 
       <Sheet visible={!!task} onClose={() => setTask(null)} title={task?.title}>
         <Text style={{ color: C.text }}>{task?.detail}</Text>
-        <Pressable onPress={() => { setTask(null); router.push('/assistant'); }}>
-          <Text style={{ color: C.sky, fontWeight: '600' }}>Ask the assistant what this means →</Text>
-        </Pressable>
         <Btn
           title="Upload the documents and reply"
           onPress={async () => {

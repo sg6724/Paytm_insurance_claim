@@ -9,6 +9,7 @@ import { get, send, upload } from '@/lib/api';
 import { useApp } from '@/lib/app-context';
 import { C } from '@/lib/theme';
 import { Btn, Card, ErrorNote, Header, IconBubble, Loading, Pill, Screen, Section, Sheet, useAsync } from '@/ui/kit';
+import { Tip } from '@/ui/tip';
 
 export default function Documents() {
   const { id, sample } = useLocalSearchParams<{ id: string; sample?: string }>();
@@ -44,6 +45,19 @@ export default function Documents() {
     if (r.canceled) return;
     for (const a of r.assets) await add({ uri: a.uri, name: a.name, type: a.mimeType ?? 'application/pdf' });
   }
+  async function abha() {
+    setError(null);
+    setBusy('Fetching your records from ABHA…');
+    try {
+      await send(`/mock/abha/fetch/${id}`);
+      claim.reload();
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setBusy(null);
+    }
+  }
+
   async function useSamples() {
     setBusy('Adding sample documents…');
     try {
@@ -71,6 +85,7 @@ export default function Documents() {
             <Btn title={docs.length ? t('continue') : 'Fill the form without documents'} onPress={() => (docs.length ? setAsk(true) : chooseMode('manual'))} />
           </>
         }>
+        <Tip id="documents" text="Add the papers you have, as photos or files. We read each one, then you choose whether we fill the claim form for you." />
         {!c ? <Loading /> : null}
         {c ? (
           <Card style={{ gap: 4 }}>
@@ -87,7 +102,7 @@ export default function Documents() {
             <IconBubble name="folder-open-outline" />
             <Text style={{ fontWeight: '600' }}>Upload files</Text>
           </Card>
-          <Card onPress={() => setError('ABHA fetch is a demo stub: connect your ABHA address to pull discharge summaries with consent.')} style={{ flex: 1, alignItems: 'center', gap: 6 }}>
+          <Card onPress={abha} style={{ flex: 1, alignItems: 'center', gap: 6 }}>
             <IconBubble name="finger-print-outline" />
             <Text style={{ fontWeight: '600' }}>From ABHA</Text>
           </Card>
@@ -119,6 +134,9 @@ export default function Documents() {
                   <Pill text={(d.doc_type || 'other').replace(/_/g, ' ')} tone={d.doc_type === 'other' ? 'warn' : 'info'} />
                 </View>
                 <Text style={{ color: C.sub, fontSize: 13 }}>{d.fields?.summary}</Text>
+                {d.review_ticket ? (
+                  <Pill text={`Not sure we read this right. A person will check it (${d.review_ticket})`} tone="warn" />
+                ) : null}
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
                   <Text style={{ color: C.faint, fontSize: 12 }}>Confidence {Math.round((d.confidence || 0) * 100)}%</Text>
                   <Pressable onPress={async () => { await send(`/documents/${d.id}`, undefined, 'DELETE'); claim.reload(); }}>

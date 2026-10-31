@@ -48,7 +48,7 @@ export function Header({ title, sub = 'Insurance Broking', onHelp, back = true, 
         <PaytmLogo sub={sub} />
         <View style={{ width: 64, alignItems: 'flex-end' }}>
           {right ?? (
-            <Pressable hitSlop={12} onPress={onHelp ?? (() => router.push('/assistant'))}>
+            <Pressable hitSlop={12} onPress={onHelp ?? (() => router.push('/guide'))}>
               <Text style={{ color: C.sky, fontWeight: '600' }}>Help</Text>
             </Pressable>
           )}

@@ -7,6 +7,7 @@ import { get, send } from '@/lib/api';
 import { useApp } from '@/lib/app-context';
 import { C } from '@/lib/theme';
 import { Btn, Card, Field, Header, Loading, Pill, Screen, Section } from '@/ui/kit';
+import { Tip } from '@/ui/tip';
 
 type Correction = { field: string; severity: 'error' | 'warning' | 'info' | 'required'; message: string; suggestion?: any };
 
@@ -130,6 +131,7 @@ export default function ClaimForm() {
             />
           </>
         }>
+        <Tip id="form" text="Fields we filled show where the value came from. Fix anything that looks wrong; warnings update as you type, and you can switch to filling it yourself any time." />
         <Card style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
           <Ionicons name={claim.fill_mode === 'ai' ? 'sparkles' : 'create-outline'} size={20} color={C.navy} />
           <View style={{ flex: 1 }}>

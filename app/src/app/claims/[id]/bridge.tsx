@@ -56,7 +56,7 @@ export default function Bridge() {
                 onPress={async () => {
                   setBusy(true);
                   try {
-                    await send(`/claims/${id}/bridge/accept`);
+                    await send(`/claims/${id}/bridge/accept`, { consent: agree });
                     router.replace(`/claims/${id}`);
                   } finally {
                     setBusy(false);

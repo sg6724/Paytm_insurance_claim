@@ -1,9 +1,9 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
-import { Text, View } from 'react-native';
+import { Linking, Text, View } from 'react-native';
 
-import { rupees, send } from '@/lib/api';
+import { API_BASE, rupees, send } from '@/lib/api';
 import { useApp } from '@/lib/app-context';
 import { C } from '@/lib/theme';
 import { Btn, Card, ErrorNote, Header, Loading, Money, Pill, Screen, Section, useAsync } from '@/ui/kit';
@@ -116,6 +116,7 @@ export default function Preflight() {
                 ))}
               </Card>
             ) : null}
+            <Btn title="Export the form as PDF" kind="ghost" icon="download-outline" onPress={() => Linking.openURL(`${API_BASE}/claims/${id}/form.pdf`)} />
             <Text style={{ color: C.faint, fontSize: 12, textAlign: 'center' }}>Calculated by the Claim-to-Cash rule engine from your policy terms and IRDAI rules. The insurer makes the final decision.</Text>
           </>
         ) : null}

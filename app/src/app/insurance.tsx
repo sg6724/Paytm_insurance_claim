@@ -6,12 +6,12 @@ import { Text, View } from 'react-native';
 import { get } from '@/lib/api';
 import { useApp } from '@/lib/app-context';
 import { C } from '@/lib/theme';
-import { Btn, Card, Header, Pill, Row, Screen, Section } from '@/ui/kit';
+import { Btn, Card, Header, Pill, Row, Screen } from '@/ui/kit';
 
 /** Paytm Insurance landing, extended with the post-purchase journey that is missing today. */
 export default function Insurance() {
   const { t, setAssistantCtx } = useApp();
-  const [counts, setCounts] = useState<{ policies: number; claims: number; open: any | null }>({ policies: 0, claims: 0, open: null });
+  const [counts, setCounts] = useState<{ policies: number; claims: number; open: any | null; onlyPolicy: string | null }>({ policies: 0, claims: 0, open: null, onlyPolicy: null });
 
   useFocusEffect(
     useCallback(() => {
@@ -25,7 +25,7 @@ export default function Insurance() {
           }
           const [p, c] = await Promise.all([get<any[]>('/policies'), get<any[]>('/claims')]);
           const open = c.find((x) => !['settled', 'draft'].includes(x.status)) ?? null;
-          setCounts({ policies: p.length, claims: c.length, open });
+          setCounts({ policies: p.length, claims: c.length, open, onlyPolicy: p.length === 1 ? p[0].id : null });
         } catch {}
       })();
     }, [setAssistantCtx]),
@@ -65,30 +65,23 @@ export default function Insurance() {
           </Card>
         ) : null}
 
-        <Card>
-          <Row icon="document-text-outline" title={t('myPolicies')} sub={counts.policies ? `${counts.policies} added` : 'Add the policy you already have'} onPress={() => router.push('/policies')} />
-          <Row icon="medkit-outline" title={t('imInHospital')} sub={t('imInHospitalSub')} onPress={() => router.push('/policies?next=hospital')} iconBg={C.redSoft} iconColor={C.red} />
-          <Row icon="receipt-outline" title={t('myClaims')} sub={counts.claims ? `${counts.claims} claim${counts.claims > 1 ? 's' : ''}` : 'File and track claims'} onPress={() => router.push('/claims')} />
-          <Row icon="lock-closed-outline" title={t('privacy')} sub="Consents and everything AI did with your data" onPress={() => router.push('/trust')} />
-          <Row icon="language-outline" title={t('language')} sub="22 Indian languages" onPress={() => router.push('/settings')} />
-        </Card>
-
-        {counts.policies === 0 ? (
+        {counts.policies === 0 && counts.claims === 0 ? (
           <Card style={{ gap: 10 }}>
-            <Text style={{ fontWeight: '700', fontSize: 16 }}>New here?</Text>
-            <Text style={{ color: C.sub }}>Walk through a full claim with a sample policy and hospital bill. Nothing is sent anywhere.</Text>
+            <Text style={{ fontWeight: '700', fontSize: 16 }}>New here? Start with step 1</Text>
+            <Text style={{ color: C.sub }}>Add the policy you already have, or walk through a full claim with a made-up policy and bill. Nothing real is sent anywhere.</Text>
+            <Btn title="Add my policy" icon="add" onPress={() => router.push('/policies/add')} />
             <Btn title={t('trySample')} kind="secondary" icon="play-circle-outline" onPress={() => router.push('/samples')} />
+            <Text style={{ color: C.faint, fontSize: 12, textAlign: 'center' }}>Tap Help at the top right any time to see the 4 steps.</Text>
           </Card>
         ) : null}
 
-        <Section title="Know before you claim">
-          <Card>
-            <Row icon="bed-outline" title="Room rent limit" sub="Can your room choice affect your claim?" onPress={() => router.push('/policies')} />
-            <Row icon="time-outline" title="Waiting periods" sub="When does your cover start?" onPress={() => router.push('/policies')} />
-            <Row icon="cash-outline" title="Co-payment" sub="How much will you pay from your pocket?" onPress={() => router.push('/policies')} />
-            <Row icon="business-outline" title="Claim experience" sub="How will your hospital bill be paid?" onPress={() => router.push('/policies')} />
-          </Card>
-        </Section>
+        <Card>
+          <Row icon="document-text-outline" title={t('myPolicies')} sub={counts.policies ? `${counts.policies} added` : 'Add the policy you already have'} onPress={() => router.push('/policies')} />
+          <Row icon="medkit-outline" title={t('imInHospital')} sub={t('imInHospitalSub')} onPress={() => router.push(counts.onlyPolicy ? `/hospital/${counts.onlyPolicy}` : '/policies?next=hospital')} iconBg={C.redSoft} iconColor={C.red} />
+          <Row icon="receipt-outline" title={t('myClaims')} sub={counts.claims ? `${counts.claims} claim${counts.claims > 1 ? 's' : ''}` : 'File and track claims'} onPress={() => router.push('/claims')} />
+          <Row icon="lock-closed-outline" title={t('privacy')} sub="Consents and everything AI did with your data" onPress={() => router.push('/trust')} />
+        </Card>
+
         <Text style={{ textAlign: 'center', color: C.faint, fontSize: 11 }}>Paytm Insurance Broking Pvt Ltd · Claims assistance as a licensed broker (demo)</Text>
       </Screen>
     </View>

@@ -68,6 +68,7 @@ export default function Decision() {
                 <ListenButton text={d.explanation} label={t('listen')} />
               </View>
               <Text style={{ fontSize: 15, lineHeight: 23, color: C.text }}>{d.explanation.replace(/\*\*/g, '')}</Text>
+              {d.review_ticket ? <Pill text={`We could not fully explain this gap, so a person will check it (${d.review_ticket})`} tone="warn" /> : null}
               <Pressable onPress={() => setLetter(true)}>
                 <Text style={{ color: C.sky, fontWeight: '600' }}>See the insurer’s letter</Text>
               </Pressable>
@@ -111,7 +112,6 @@ export default function Decision() {
                 <Btn title="See EMI options" kind="ghost" onPress={async () => { await send(`/claims/${id}/appeal/dismiss`); router.push(`/claims/${id}/bridge`); }} />
               </Card>
             ) : null}
-            <Btn title={t('talkToHuman')} kind="ghost" icon="headset-outline" onPress={() => router.push('/assistant?human=1')} />
           </>
         ) : null}
       </Screen>
